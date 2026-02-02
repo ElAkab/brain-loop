@@ -161,11 +161,15 @@ feat(auth): implement Google OAuth with Supabase
 
 ### Frontend
 
+Frontend is in the folder: Frontend/
+
 - Use Error Boundaries for component-level errors
 - Display user-friendly error messages
 - Log errors for debugging (console.error in development)
 
 ### Backend
+
+Backend is in the folder: Backend/
 
 - Return proper HTTP status codes
 - Include error codes for client-side handling
