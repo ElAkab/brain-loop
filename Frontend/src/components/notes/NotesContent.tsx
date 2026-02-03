@@ -41,12 +41,13 @@ interface Category {
 interface NotesContentProps {
   notes: Note[];
   categories: Category[];
+  initialCategory?: string;
 }
 
-export function NotesContent({ notes: initialNotes, categories }: NotesContentProps) {
+export function NotesContent({ notes: initialNotes, categories, initialCategory }: NotesContentProps) {
   const [notes, setNotes] = useState(initialNotes);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? 'all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewNoteId, setViewNoteId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
