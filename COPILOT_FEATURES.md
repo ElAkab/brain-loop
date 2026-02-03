@@ -558,15 +558,16 @@ test('user can login with Google OAuth', async ({ page }) => {
 | **Epic 3** (Planned) | 10+ | Est. 4x faster AI integration |
 | **Epic 4** (Planned) | 6+ | Est. 2x faster finalization |
 
-### Cumulative Impact (Session 2026-02-02 - End of Epic 1)
+### Cumulative Impact (Session 2026-02-02 - End of Stories 2.1 & 2.2)
 
-- **Time Saved**: ~7-8 hours total (2h scaffolding + 2-3h OAuth debugging + 1.5-2h navigation)
-- **Lines of Code Generated**: ~3,500 (800 docs + 400 auth + 2,300 UI components)
-- **Errors Prevented**: 5 major (ESM/CommonJS, OAuth config, redirect URI, route group syntax, responsive layout)
+- **Time Saved**: ~11-12 hours total (2h scaffolding + 2-3h OAuth + 1.5-2h navigation + 3-4h CRUD)
+- **Lines of Code Generated**: ~5,000+ (800 docs + 400 auth + 2,300 UI + 1,500 API routes/components)
+- **Errors Prevented**: 8 major (ESM/CommonJS, OAuth, redirect URI, route groups, responsive, 3x schema mismatches)
 - **Tests Created**: 0 (planned: 20+ E2E tests in Epic 2+)
-- **Files Created**: 31 total (8 config/docs + 6 auth + 17 UI/layout)
-- **Debugging Iterations**: 6 (avg 10 min each vs 30+ min manually)
+- **Files Created**: 41 total (8 config/docs + 6 auth + 17 UI/layout + 10 CRUD)
+- **Debugging Iterations**: 11 (avg 10 min each vs 30+ min manually)
 - **Components Installed**: 5 Shadcn UI components (button, sheet, avatar, badge, separator)
+- **Database Schemas Modified**: 2 (categories table simplified)
 
 ---
 
