@@ -1,133 +1,159 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-interface Question {
-  question: string;
-  options: string[];
-  correctAnswer: number;
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
-interface QuestionGeneratorProps {
-  noteId: string;
-}
-
-export function QuestionGenerator({ noteId }: QuestionGeneratorProps) {
-  const [questions, setQuestions] = useState<Question[]>([]);
+export function QuestionGenerator({ noteId }: { noteId: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
 
-  const generateQuestions = async () => {
+  const startConversation = async () => {
+    setIsOpen(true);
+    setMessages([]);
     setLoading(true);
-    setError(null);
-    setQuestions([]);
-    setUserAnswers([]);
 
     try {
-      const response = await fetch('/api/ai/generate-questions', {
+      const res = await fetch('/api/ai/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ noteId }),
+        body: JSON.stringify({ noteId, messages: [] }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to generate questions');
+      if (!res.ok) {
+        const error = await res.json();
+        alert(`Error: ${error.error}`);
+        return;
       }
 
-      const data = await response.json();
-      setQuestions(data.questions);
-      setUserAnswers(new Array(data.questions.length).fill(null));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const data = await res.json();
+      setMessages([{ role: 'assistant', content: data.message }]);
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      alert('Failed to start conversation');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAnswerSelect = (questionIndex: number, optionIndex: number) => {
-    const newAnswers = [...userAnswers];
-    newAnswers[questionIndex] = optionIndex;
-    setUserAnswers(newAnswers);
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage: Message = { role: 'user', content: input };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/ai/generate-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          noteId, 
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        alert(`Error: ${error.error}`);
+        return;
+      }
+
+      const data = await res.json();
+      setMessages([...updatedMessages, { role: 'assistant', content: data.message }]);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      alert('Failed to send message');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const isAnswered = (questionIndex: number) => userAnswers[questionIndex] !== null;
-  const isCorrect = (questionIndex: number) => 
-    userAnswers[questionIndex] === questions[questionIndex].correctAnswer;
-
   return (
-    <div className="space-y-4">
-      <Button 
-        onClick={generateQuestions} 
-        disabled={loading}
-        className="w-full"
-      >
-        {loading ? 'Generating Questions...' : '✨ Generate AI Questions'}
-      </Button>
+    <div>
+      {!isOpen ? (
+        <button
+          onClick={startConversation}
+          disabled={loading}
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+        >
+          {loading ? 'Starting...' : '🤖 Quiz Me'}
+        </button>
+      ) : (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-semibold">AI Study Session</h2>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="px-3 py-1 text-gray-600 hover:text-gray-800"
+              >
+                ✕ Close
+              </button>
+            </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] px-4 py-2 rounded-lg ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg">
+                    <p>Typing...</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-      {questions.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Quiz Questions</h3>
-          
-          {questions.map((q, qIndex) => (
-            <Card key={qIndex}>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Question {qIndex + 1}: {q.question}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {q.options.map((option, oIndex) => {
-                  const isSelected = userAnswers[qIndex] === oIndex;
-                  const isCorrectOption = oIndex === q.correctAnswer;
-                  const showResult = isAnswered(qIndex);
-
-                  let bgColor = 'bg-white hover:bg-gray-50';
-                  if (showResult) {
-                    if (isCorrectOption) {
-                      bgColor = 'bg-green-100 border-green-500';
-                    } else if (isSelected && !isCorrectOption) {
-                      bgColor = 'bg-red-100 border-red-500';
+            {/* Input */}
+            <div className="p-4 border-t">
+              <div className="flex gap-2">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
                     }
-                  } else if (isSelected) {
-                    bgColor = 'bg-blue-100 border-blue-500';
-                  }
-
-                  return (
-                    <button
-                      key={oIndex}
-                      onClick={() => handleAnswerSelect(qIndex, oIndex)}
-                      disabled={showResult}
-                      className={`w-full text-left p-3 border-2 rounded-lg transition-colors ${bgColor} disabled:cursor-not-allowed`}
-                    >
-                      {String.fromCharCode(65 + oIndex)}. {option}
-                      {showResult && isCorrectOption && ' ✓'}
-                      {showResult && isSelected && !isCorrectOption && ' ✗'}
-                    </button>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-
-          {userAnswers.every(a => a !== null) && (
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="pt-4">
-                <p className="font-semibold">
-                  Score: {userAnswers.filter((a, i) => a === questions[i].correctAnswer).length} / {questions.length}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+                  }}
+                  placeholder="Type your answer here... (Shift+Enter for new line)"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg resize-none"
+                  rows={3}
+                  disabled={loading}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={loading || !input.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
