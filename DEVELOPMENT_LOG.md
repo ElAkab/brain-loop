@@ -541,6 +541,159 @@ Epic 1 complete (Auth + Navigation working). Moving to core knowledge management
 
 ---
 
+## Session 2026-02-03 : AI Question Generation Implementation
+
+### Objective
+
+Implement conversational AI system where users can be questioned on their notes (Epic 2, Story 2.3).
+
+### Context
+
+Epic 2 Stories 2.1 & 2.2 complete (Categories + Notes CRUD working). Now implementing the core value proposition: AI-powered questioning based on user notes. This is the MVP's killer feature that differentiates Brain Loop from basic note apps.
+
+### GitHub Copilot CLI Features Used
+
+- ✅ **API route creation**: Built OpenRouter integration endpoint
+- ✅ **Component generation**: Created QuestionGenerator modal with chat interface
+- ✅ **Prompt engineering**: Designed adaptive prompt for flexible note questioning
+- ✅ **Model rotation system**: Implemented automatic fallback across free models
+- ✅ **Streaming responses**: Configured streaming AI responses (prepared for future)
+- ✅ **Error handling**: Robust rate limit and API error management
+- ✅ **Shadcn UI**: Installed Dialog, Textarea, ScrollArea components
+
+### Implementation Details
+
+#### 1. OpenRouter API Integration
+
+- **Tool**: `create`
+- **File**: `Frontend/src/app/api/ai/generate-questions/route.ts`
+- **Features**:
+  - Model rotation system (tries 6 free models with fallback)
+  - Rate limit detection and automatic retry with next model
+  - Conversation history support (prepared for premium feature)
+  - Streaming response capability (prepared)
+  - Error handling with user-friendly messages
+
+#### 2. AI Conversation Modal
+
+- **Tool**: `create`
+- **File**: `Frontend/src/components/notes/QuestionGenerator.tsx`
+- **Features**:
+  - Modal dialog with chat interface
+  - AI asks questions based on notes
+  - User responds via textarea
+  - Conversation continues (multiple turns)
+  - Close button (preserves history in state)
+  - Loading states during AI generation
+
+#### 3. Prompt Engineering
+
+- **Strategy**: Flexible open-ended questions vs rigid multiple-choice
+- **System Context**: Positioned as helpful tutor asking thoughtful questions
+- **Note Integration**: Sends all category notes as context
+- **User Response**: Supports conversational back-and-forth
+- **Example Notes**: Tested with STRIDE threat modeling notes (security concepts)
+
+#### 4. Model Rotation Logic
+
+```typescript
+const FREE_MODELS = [
+  'google/gemini-2.0-flash-thinking-exp:free',
+  'google/gemini-2.0-flash-exp:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'microsoft/phi-3-mini-128k-instruct:free',
+  'qwen/qwen-2.5-7b-instruct:free'
+];
+```
+
+- Tries each model sequentially on 429 rate limit
+- Returns first successful response
+- Clear error if all models exhausted
+- Optimized for free tier usage
+
+#### 5. Conversation Flow
+
+1. User clicks "Generate Question" on Notes page
+2. Modal opens, fetches all notes in category
+3. API sends notes + history to OpenRouter
+4. AI generates contextual question
+5. User types response in textarea
+6. Clicks "Send" → API continues conversation
+7. Repeat steps 4-6 or close modal
+
+### Acceptance Criteria
+
+**Story 2.3: AI Question Generation** ✅
+
+- [x] AC1: "Generate Question" button on Notes page
+- [x] AC2: Modal opens with AI-generated question
+- [x] AC3: User can respond via textarea
+- [x] AC4: Conversation continues (multiple turns)
+- [x] AC5: Model rotation handles rate limits gracefully
+
+### Commits
+
+- `feat(story-2.3): implement AI conversation system with model rotation` (pending)
+
+### Files Created/Modified
+
+**Created** (3 files):
+
+- `Frontend/src/app/api/ai/generate-questions/route.ts` (AI endpoint with rotation)
+- `Frontend/src/components/notes/QuestionGenerator.tsx` (Chat modal UI)
+- `Frontend/src/components/ui/dialog.tsx` (Shadcn Dialog component)
+- `Frontend/src/components/ui/textarea.tsx` (Shadcn Textarea component)
+- `Frontend/src/components/ui/scroll-area.tsx` (Shadcn ScrollArea component)
+
+**Modified** (1 file):
+
+- `Frontend/src/app/(protected)/notes/page.tsx` (Added Generate Question button)
+
+### Next Steps
+
+**Discussion Point**: Conversation History (Story 2.4)
+
+- **User's Concern**: Should be post-MVP premium feature
+- **Reason**: Persistent history enhances LLM personalization (premium value)
+- **Current State**: Conversation history works in-session (modal state)
+- **Database Impact**: Would need `conversations` + `messages` tables
+- **Decision**: Skip Story 2.4 for MVP, revisit post-launch
+
+**Recommended Next Step**: Epic 3 - Deployment & Testing
+
+- Deploy MVP to Vercel
+- Configure production environment
+- Write critical E2E tests (auth, notes, AI chat)
+- Polish UX (loading states, errors, responsive)
+
+**Alternative**: Epic 4 - Quota Management (if needed before launch)
+
+- Implement hint credit tracking
+- Weekly quota reset
+- Premium plan differentiation
+
+### Notes
+
+- **Model Selection**: Free models work but inconsistent (Gemini 2.0 best so far)
+- **Prompt Adaptation**: Open-ended questions work better than structured quizzes
+- **Rate Limiting**: Rotation system essential for free tier viability
+- **UX Improvements Needed**: 
+  - Loading skeleton during question generation
+  - Better error messages
+  - Conversation history UI (premium feature)
+  - Model selection dropdown (advanced users)
+- **Technical Debt**: None major, MVP scope well-defined
+
+### Copilot CLI Impact
+
+- **Time Saved**: Est. 2-3 hours (OpenRouter integration + prompt engineering + UI)
+- **Tools Used**: `create` (5x), `edit` (3x), `bash` (2x), `view` (4x)
+- **Errors Prevented**: 2 (JSON parsing, rate limit handling)
+- **Code Quality**: Clean API structure, reusable modal component, robust error handling
+
+---
+
 ## Template for Future Sessions
 
 ```markdown
@@ -601,7 +754,8 @@ Epic 1 complete (Auth + Navigation working). Moving to core knowledge management
 | 1         | 1.4           | ✅ Complete | 2026-02-02   | 96c3d63                          |
 | 2         | 2.1           | ✅ Complete | 2026-02-02   | Pending                          |
 | 2         | 2.2           | ✅ Complete | 2026-02-02   | Pending                          |
-| 2         | 2.3           | 🔜 Next     | -            | -                                |
+| 2         | 2.3           | ✅ Complete | 2026-02-03   | Pending                          |
+| 2         | 2.4           | ⏸️ Deferred | -            | Post-MVP (Premium Feature)       |
 
 ### Legend
 
@@ -614,4 +768,4 @@ Epic 1 complete (Auth + Navigation working). Moving to core knowledge management
 
 ---
 
-**Last Updated**: 2026-02-02 by GitHub Copilot CLI
+**Last Updated**: 2026-02-03 by GitHub Copilot CLI
