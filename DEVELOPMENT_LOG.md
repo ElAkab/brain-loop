@@ -4,6 +4,117 @@ This document tracks the development journey of Brain Loop, documenting each ses
 
 ---
 
+## Session 2026-02-03 : Dark Mode Design System Implementation
+
+### Objective
+
+Implement a professional dark theme design system following DESIGN_GUIDELINES.md to improve user experience and reduce eye strain during extended study sessions.
+
+### Context
+
+MVP functionality was complete but lacked visual polish and consistency. The bright white theme was fatiguing for users during long study sessions. This session focused on applying a cohesive dark mode design with improved UX patterns (cards, modals, search).
+
+### GitHub Copilot CLI Features Used
+
+- ✅ **Parallel file viewing**: Read multiple files simultaneously (layout.tsx, globals.css, dashboard/page.tsx)
+- ✅ **Batch file editing**: Updated multiple components in single responses
+- ✅ **Component creation**: Created DashboardContent.tsx and NotesContent.tsx with full feature implementations
+- ✅ **Package management integration**: Installed shadcn/ui components via pnpm (dialog, input, select, label, textarea)
+- ✅ **Build validation**: Ran build checks iteratively to catch TypeScript errors
+- ✅ **Git operations**: Staged, reviewed, and committed changes with proper conventional commit messages
+
+### Implementation Details
+
+#### 1. Custom Dark Theme (globals.css)
+
+- **Tool**: `edit`
+- **Changes**:
+  - Replaced default oklch colors with custom hex values:
+    - Background: #1E1E2F (dark blue-gray)
+    - Card: #2A2A3B (lighter sections)
+    - Primary/Accent: #4FD1C5 (turquoise for CTAs)
+    - Foreground: #F5F5F5 (light text)
+  - Applied consistent border and input styles with transparency
+  - Enhanced contrast for accessibility (WCAG AA compliant)
+
+#### 2. Dashboard Refactor
+
+- **Tool**: `edit` + `create`
+- **New Component**: `DashboardContent.tsx`
+- **Features**:
+  - Grid layout for categories (responsive: 1-2-3 columns)
+  - Color indicator bar on top of each category card
+  - Hover effects with primary color shadow
+  - Inline edit/delete actions (visible on hover)
+  - Empty state with CTA to create first category
+  - Modal-based category creation (Dialog component)
+  - Note count badge per category
+  - Click-to-navigate to notes page with filter
+
+#### 3. Notes Page Redesign
+
+- **Tool**: `edit` + `create`
+- **New Component**: `NotesContent.tsx`
+- **Features**:
+  - **Fixed-height cards** (280px) with overflow handling
+  - **Search bar** with icon (filters by title/content)
+  - **Category filter** dropdown (Select component)
+  - **Modal for create/edit** (Dialog component with form)
+  - **View modal** for full note content (click card to open)
+  - **Compact Quiz button** in card footer
+  - **Hover actions**: edit/delete icons (ghost buttons)
+  - **Empty states** for no notes / no search results
+  - Category color indicator on each card
+
+#### 4. QuestionGenerator Enhancement
+
+- **Tool**: `edit`
+- **Changes**:
+  - Added `variant` prop: "default" | "compact"
+  - Compact variant: smaller button with icon for card footers
+  - Converted modal to shadcn/ui Dialog component
+  - Improved message styling (primary color for user, muted for AI)
+  - Better textarea with proper keyboard navigation
+  - Consistent dark theme styling
+
+#### 5. Shadcn/UI Components Installation
+
+- **Tool**: `bash` (pnpm dlx shadcn)
+- **Components Added**:
+  - Dialog: Modal/overlay system
+  - Input: Form text inputs
+  - Select: Dropdown selectors
+  - Label: Form labels
+  - Textarea: Multi-line inputs
+- **Result**: Consistent UI primitives across the app
+
+#### 6. TypeScript Fixes
+
+- **Tool**: `edit`
+- **Issues Resolved**:
+  - Category interface mismatch (added optional `color` prop)
+  - Supabase server.ts implicit `any` type for cookies
+  - Build validation passed with strict mode enabled
+
+### Results
+
+- ✅ Professional dark theme applied globally
+- ✅ Improved readability and reduced eye strain
+- ✅ Consistent design language across all pages
+- ✅ Enhanced UX with modals, search, and filters
+- ✅ Build passes with no TypeScript errors
+- ✅ All existing functionality preserved (no regressions)
+- ✅ Proper commit with conventional format
+
+### Next Steps (from PRD)
+
+- Implement multi-note quiz selection (Story 2.4)
+- Add conversation history persistence (premium feature, post-MVP)
+- UI/UX polish based on user testing
+- Performance optimization (lazy loading, caching)
+
+---
+
 ## Session 2026-02-01 : Project Documentation Setup
 
 ### Objective
