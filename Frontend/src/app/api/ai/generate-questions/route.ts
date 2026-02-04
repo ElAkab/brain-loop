@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const OPENROUTER_DEV_API_KEY =
 	process.env.OPENROUTER_DEV_API_KEY || process.env.OPENROUTER_PROD_API_KEY;
@@ -19,9 +19,9 @@ const FREE_MODELS = [
 	"openai/gpt-oss-120b:free",
 ];
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	try {
-		const supabase = await createClient();
+		const supabase = await createClient(request);
 
 		const {
 			data: { user },

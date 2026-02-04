@@ -1259,4 +1259,84 @@ Core features complete (Auth, Categories, Notes, AI Chat). User feedback indicat
 
 ---
 
-**Last Updated**: 2026-02-03 by GitHub Copilot CLI
+## Session 2026-02-04: Markdown Support & Multi-Note Selection
+
+### Story 2.3: Markdown Support ✅
+
+**Context**:
+Implemented rich text formatting for notes and AI conversations using Markdown syntax.
+
+**Changes**:
+- Installed `react-markdown` and `remark-gfm` for GitHub-flavored Markdown
+- Created reusable `<Markdown>` component with custom styling
+- Applied Markdown rendering in:
+  - Notes content display
+  - Study mode modal
+  - AI conversation messages (user & AI)
+- Added Markdown syntax guide tooltip in note editor
+- Fixed list alignment and spacing issues
+
+**Files Modified**:
+- `Frontend/src/components/ui/markdown.tsx` (new)
+- `Frontend/src/components/notes/NotesContent.tsx`
+- `Frontend/src/components/notes/QuestionGenerator.tsx`
+- `Frontend/package.json`
+
+**Technical Details**:
+- Uses `remark-gfm` for tables, strikethrough, task lists
+- Custom className mapping for Tailwind styling
+- Preserves whitespace with `prose` class
+- Dark mode compatible
+
+**Testing**:
+- ✅ Markdown renders in notes display
+- ✅ Markdown renders in study modal
+- ✅ Markdown renders in AI conversations
+- ✅ Lists properly aligned with indentation
+
+---
+
+### Story 2.4: Multi-Note Quiz Selection ✅
+
+**Context**:
+Added ability to select multiple notes for AI quizzing, providing broader context for more relevant questions.
+
+**Changes**:
+- Added selection mode toggle in notes page
+- Implemented checkbox-based multi-selection UI
+- Created "Quiz Selected Notes" action button
+- Integrated with existing `/api/ai/generate-questions` endpoint
+- Combined multiple note contents for AI context
+
+**Files Modified**:
+- `Frontend/src/components/notes/NotesContent.tsx`
+- `Frontend/src/components/notes/QuestionGenerator.tsx`
+
+**UI/UX**:
+- "Select Notes" button toggles selection mode
+- Checkboxes appear on each note card
+- Selected count indicator
+- "Quiz Selected Notes" button (requires 1+ selections)
+- Smooth transitions and visual feedback
+
+**Technical Details**:
+- Client-side state management with `useState`
+- Concatenates selected notes with category context
+- Maintains backward compatibility with single-note quiz
+- Responsive design for mobile/desktop
+
+**Testing**:
+- ✅ Selection mode toggles correctly
+- ✅ Multi-note selection works
+- ✅ Quiz generates with multiple notes context
+- ✅ AI provides relevant questions across topics
+
+**Benefits**:
+- Users can study multiple related topics together
+- AI has better context for cross-topic questions
+- More flexible study sessions
+- Better learning experience
+
+---
+
+**Last Updated**: 2026-02-04 by GitHub Copilot CLI

@@ -21,12 +21,16 @@ interface QuestionGeneratorProps {
 	noteId?: string;
 	noteIds?: string[];
 	variant?: "default" | "compact";
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
 }
 
 export function QuestionGenerator({
 	noteId,
 	noteIds,
 	variant = "default",
+	open,
+	onOpenChange,
 }: QuestionGeneratorProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [messages, setMessages] = useState<Message[]>([]);
@@ -43,6 +47,27 @@ export function QuestionGenerator({
 		scrollToBottom();
 	}, [messages, streamingContent]);
 
+	// Support controlled `open` prop
+	useEffect(() => {
+		if (open !== undefined) setIsOpen(open);
+	}, [open]);
+
+	// Auto-start conversation when controlled `open` becomes true
+	useEffect(() => {
+		if (open !== undefined && open) {
+			if (!loading && messages.length === 0) {
+				// startConversation will set loading and begin the fetch
+				startConversation().catch((e) => console.error(e));
+			}
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open]);
+
+	const setOpen = (val: boolean) => {
+		if (onOpenChange) onOpenChange(val);
+		if (open === undefined) setIsOpen(val);
+	};
+
 	const processStream = async (
 		response: Response,
 		updatedMessages?: Message[],
@@ -54,13 +79,14 @@ export function QuestionGenerator({
 			throw new Error("No reader available");
 		}
 
-		let accumulatedContent = ""; // for the full message content
+		let accumulatedContent = "";
 
 		try {
+			console.debug("QuestionGenerator: processStream started");
 			while (true) {
 				const { done, value } = await reader.read();
 				if (done) break;
-
+				console.debug("QuestionGenerator: received chunk", value && value.byteLength);
 				const chunk = decoder.decode(value);
 				const lines = chunk.split("\n");
 
@@ -69,7 +95,6 @@ export function QuestionGenerator({
 						const data = line.slice(6);
 
 						if (data === "[DONE]") {
-							// Stream finished
 							const assistantMessage: Message = {
 								role: "assistant",
 								content: accumulatedContent,
@@ -91,8 +116,7 @@ export function QuestionGenerator({
 								setStreamingContent(accumulatedContent);
 							}
 						} catch (e) {
-							// Ignore parse errors for incomplete chunks
-							continue;
+							// ignore incomplete JSON
 						}
 					}
 				}
@@ -106,40 +130,42 @@ export function QuestionGenerator({
 	};
 
 	const startConversation = async () => {
-		setIsOpen(true);
+		console.debug("QuestionGenerator: startConversation called", { noteId, noteIds });
+		setOpen(true);
 		setMessages([]);
 		setLoading(true);
 		setStreamingContent("");
 
 		try {
-			// Use appropriate endpoint based on whether we have single or multiple notes
-			const endpoint = noteIds && noteIds.length > 1 
-				? "/api/ai/quiz-multi" 
-				: "/api/ai/generate-questions";
+			const endpoint =
+				noteIds && noteIds.length > 1
+					? "/api/ai/quiz-multi"
+					: "/api/ai/generate-questions";
 
-			const body = noteIds && noteIds.length > 1
-				? { noteIds, messages: [] }
-				: { noteId, messages: [] };
+			const body =
+				noteIds && noteIds.length > 1
+					? { noteIds, messages: [] }
+					: { noteId, messages: [] };
 
+			console.debug("QuestionGenerator: fetching", endpoint, body);
 			const res = await fetch(endpoint, {
 				method: "POST",
+				credentials: "same-origin",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 
+			console.debug("QuestionGenerator: fetch complete", res.status);
 			if (!res.ok) {
-				const error = await res.json();
-				alert(`Error: ${error.error}`);
+				let errorBody: any = null;
+				try {
+					errorBody = await res.json();
+				} catch (e) {}
+				alert(`Error: ${errorBody?.error || res.statusText}`);
 				return;
 			}
 
-			// For multi-note, response is JSON, not stream
-			if (noteIds && noteIds.length > 1) {
-				const data = await res.json();
-				setMessages([{ role: "assistant", content: data.message }]);
-			} else {
-				await processStream(res);
-			}
+			await processStream(res);
 		} catch (error) {
 			console.error("Failed to start conversation:", error);
 			alert("Failed to start conversation");
@@ -159,39 +185,33 @@ export function QuestionGenerator({
 		setStreamingContent("");
 
 		try {
-			const endpoint = noteIds && noteIds.length > 1 
-				? "/api/ai/quiz-multi" 
-				: "/api/ai/generate-questions";
+			const endpoint =
+				noteIds && noteIds.length > 1
+					? "/api/ai/quiz-multi"
+					: "/api/ai/generate-questions";
 
-			const body = noteIds && noteIds.length > 1
-				? { noteIds, messages: updatedMessages }
-				: { noteId, messages: updatedMessages };
+			const body =
+				noteIds && noteIds.length > 1
+					? { noteIds, messages: updatedMessages }
+					: { noteId, messages: updatedMessages };
 
 			const res = await fetch(endpoint, {
 				method: "POST",
+				credentials: "same-origin",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 
 			if (!res.ok) {
-				const error = await res.json();
-				alert(`Error: ${error.error}`);
+				let errorBody: any = null;
+				try {
+					errorBody = await res.json();
+				} catch (e) {}
+				alert(`Error: ${errorBody?.error || res.statusText}`);
 				return;
 			}
 
-			if (!res.ok) {
-				const error = await res.json();
-				alert(`Error: ${error.error}`);
-				return;
-			}
-
-			// For multi-note, response is JSON, not stream
-			if (noteIds && noteIds.length > 1) {
-				const data = await res.json();
-				setMessages([...updatedMessages, { role: "assistant", content: data.message }]);
-			} else {
-				await processStream(res, updatedMessages);
-			}
+			await processStream(res, updatedMessages);
 		} catch (error) {
 			console.error("Failed to send message:", error);
 			alert("Failed to send message");
@@ -206,7 +226,7 @@ export function QuestionGenerator({
 				<Button
 					size="sm"
 					variant="ghost"
-					className="gap-2 h-8 text-xs bg-white/10 hover:bg-white/20"
+					className="gap-2 h-8 text-xs bg-white/10 hover:bg-white/20 cursor-pointer"
 					onClick={startConversation}
 					disabled={loading}
 				>
@@ -219,12 +239,19 @@ export function QuestionGenerator({
 					disabled={loading}
 					className="gap-2"
 				>
-					<Sparkles className="h-4 w-4" />
+					<Sparkles className="h-4 w-4 cursor-pointer" />
 					{loading ? "Starting..." : "Quiz Me"}
 				</Button>
 			)}
 
-			<Dialog open={isOpen} onOpenChange={setIsOpen}>
+			<Dialog
+				open={isOpen}
+				onOpenChange={(val) => {
+					// propagate change and keep internal state in uncontrolled mode
+					if (onOpenChange) onOpenChange(val);
+					if (open === undefined) setIsOpen(val);
+				}}
+			>
 				<DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
 					<DialogHeader>
 						<DialogTitle>AI Study Session</DialogTitle>
@@ -285,7 +312,7 @@ export function QuestionGenerator({
 							disabled={loading}
 						/>
 						<div className="flex justify-end gap-2">
-							<Button variant="outline" onClick={() => setIsOpen(false)}>
+							<Button variant="outline" onClick={() => setOpen(false)}>
 								Close
 							</Button>
 							<Button onClick={sendMessage} disabled={loading || !input.trim()}>
