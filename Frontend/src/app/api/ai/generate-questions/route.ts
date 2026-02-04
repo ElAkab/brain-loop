@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const OPENROUTER_DEV_API_KEY = process.env.OPENROUTER_DEV_API_KEY;
+const OPENROUTER_DEV_API_KEY =
+	process.env.OPENROUTER_DEV_API_KEY || process.env.OPENROUTER_PROD_API_KEY;
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 // List of free models to rotate through
