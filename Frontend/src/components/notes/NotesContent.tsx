@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Pencil, Trash2, FileText, Sparkles } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Sparkles, CheckSquare, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -52,6 +52,8 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewNoteId, setViewNoteId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -154,75 +156,120 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
           <h1 className="text-3xl font-bold">Your Notes</h1>
           <p className="text-muted-foreground mt-1">
             {filteredNotes.length} {filteredNotes.length === 1 ? 'note' : 'notes'}
+            {isSelectionMode && selectedNotes.size > 0 && ` · ${selectedNotes.size} selected`}
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2" onClick={() => setEditingNote(null)}>
-              <Plus className="h-5 w-5" />
-              New Note
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingNote ? 'Edit Note' : 'Create New Note'}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={formData.category_id}
-                  onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                  required
-                >
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.icon} {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="flex gap-2">
+          {isSelectionMode ? (
+            <>
+              <Button 
+                size="lg" 
+                variant="default"
+                disabled={selectedNotes.size === 0}
+                onClick={() => {
+                  // Le QuestionGenerator va gérer le multi-note quiz
+                  setViewNoteId(Array.from(selectedNotes)[0]); // On utilise le premier pour déclencher le dialog
+                }}
+                className="gap-2"
+              >
+                <Sparkles className="h-5 w-5" />
+                Quiz Selected ({selectedNotes.size})
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => {
+                  setIsSelectionMode(false);
+                  setSelectedNotes(new Set());
+                }}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => setIsSelectionMode(true)}
+                className="gap-2"
+              >
+                <CheckSquare className="h-5 w-5" />
+                Select Multiple
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" className="gap-2" onClick={() => setEditingNote(null)}>
+                    <Plus className="h-5 w-5" />
+                    New Note
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingNote ? 'Edit Note' : 'Create New Note'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Select
+                        value={formData.category_id}
+                        onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                        required
+                      >
+                        <SelectTrigger id="category">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.icon} {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Enter note title..."
-                  required
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        placeholder="Enter note title..."
+                        required
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Write your note here..."
-                  rows={12}
-                  className="resize-none"
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="content">Content</Label>
+                      <Textarea
+                        id="content"
+                        value={formData.content}
+                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                        placeholder="Write your note here..."
+                        rows={12}
+                        className="resize-none font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Supports Markdown: **bold**, *italic*, `code`, # Heading, - List, [link](url)
+                      </p>
+                    </div>
 
-              <div className="flex gap-2 pt-4">
-                <Button type="submit" className="flex-1">
-                  {editingNote ? 'Update Note' : 'Create Note'}
-                </Button>
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                    <div className="flex gap-2 pt-4">
+                      <Button type="submit" className="flex-1">
+                        {editingNote ? 'Update Note' : 'Create Note'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={resetForm}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter Bar */}
@@ -279,7 +326,24 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
             return (
               <div
                 key={note.id}
-                className="group relative flex flex-col h-[280px] rounded-lg border border-border bg-card overflow-hidden transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10"
+                className={`group relative flex flex-col h-[280px] rounded-lg border bg-card overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/10 ${
+                  isSelectionMode 
+                    ? selectedNotes.has(note.id)
+                      ? 'border-primary ring-2 ring-primary'
+                      : 'border-border hover:border-primary/50 cursor-pointer'
+                    : 'border-border hover:border-primary'
+                }`}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    const newSelected = new Set(selectedNotes);
+                    if (newSelected.has(note.id)) {
+                      newSelected.delete(note.id);
+                    } else {
+                      newSelected.add(note.id);
+                    }
+                    setSelectedNotes(newSelected);
+                  }
+                }}
               >
                 {/* Category indicator */}
                 {category && (
@@ -289,10 +353,25 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
                   />
                 )}
 
+                {/* Selection checkbox */}
+                {isSelectionMode && (
+                  <div className="absolute top-3 left-3 z-10">
+                    {selectedNotes.has(note.id) ? (
+                      <CheckSquare className="h-6 w-6 text-primary" />
+                    ) : (
+                      <Square className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                )}
+
                 {/* Content - clickable */}
                 <div
-                  className="flex-1 p-5 cursor-pointer overflow-hidden"
-                  onClick={() => setViewNoteId(note.id)}
+                  className={`flex-1 p-5 overflow-hidden ${!isSelectionMode ? 'cursor-pointer' : ''}`}
+                  onClick={(e) => {
+                    if (!isSelectionMode) {
+                      setViewNoteId(note.id);
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     {category && (
@@ -301,7 +380,9 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
                       </span>
                     )}
                   </div>
-                  <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                  <h3 className={`font-bold text-lg mb-2 line-clamp-2 transition-colors ${
+                    isSelectionMode ? (selectedNotes.has(note.id) ? 'text-primary' : '') : 'group-hover:text-primary'
+                  }`}>
                     {note.title}
                   </h3>
                   <div className="text-sm text-muted-foreground line-clamp-4 overflow-hidden">
@@ -310,34 +391,36 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
                 </div>
 
                 {/* Footer with actions */}
-                <div className="px-5 py-3 border-t border-border bg-card/50 flex items-center justify-between">
-                  <QuestionGenerator noteId={note.id} variant="compact" />
+                {!isSelectionMode && (
+                  <div className="px-5 py-3 border-t border-border bg-card/50 flex items-center justify-between">
+                    <QuestionGenerator noteId={note.id} variant="compact" />
 
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditDialog(note);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(note.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditDialog(note);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(note.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             );
           })}
@@ -345,7 +428,7 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
       )}
 
       {/* View Note Dialog */}
-      <Dialog open={!!viewNoteId} onOpenChange={() => setViewNoteId(null)}>
+      <Dialog open={!!viewNoteId && !isSelectionMode} onOpenChange={() => setViewNoteId(null)}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           {viewNote && (
             <>
@@ -370,6 +453,25 @@ export function NotesContent({ notes: initialNotes, categories, initialCategory 
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Multi-Note Quiz Dialog */}
+      <Dialog open={isSelectionMode && selectedNotes.size > 0 && !!viewNoteId} onOpenChange={() => {
+        setViewNoteId(null);
+        setIsSelectionMode(false);
+        setSelectedNotes(new Set());
+      }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Multi-Note Quiz</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Testing your knowledge across {selectedNotes.size} selected notes
+            </p>
+          </DialogHeader>
+          <div className="pt-6">
+            <QuestionGenerator noteIds={Array.from(selectedNotes)} />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -4,6 +4,140 @@ This document tracks the development journey of Brain Loop, documenting each ses
 
 ---
 
+## Session 2026-02-04 (Part 2) : Markdown UX + Multi-Note Selection (Story 2.4) ✅
+
+### Objective
+
+Improve Markdown usability with better list formatting and user guidance, then implement multi-note selection for comprehensive quizzing across multiple notes.
+
+### Context
+
+Story 2.3 implemented Markdown rendering but had issues:
+- Bullet points weren't properly aligned
+- Users didn't know Markdown was supported
+- Quiz feature was limited to single notes
+
+Story 2.4 requires selecting multiple notes to give AI broader context for better questions.
+
+### GitHub Copilot CLI Features Used
+
+- ✅ **CSS debugging**: Fixed list alignment (list-inside → pl-6 + ml-0)
+- ✅ **UX enhancement**: Added subtle Markdown hints in note creation dialog
+- ✅ **State management**: Implemented selection mode with Set-based tracking
+- ✅ **Conditional rendering**: Different UI states (normal vs selection mode)
+- ✅ **API integration**: Connected multi-select to existing `/api/ai/quiz-multi` endpoint
+- ✅ **Component refactoring**: Made QuestionGenerator support both single and multi-note modes
+- ✅ **Build validation**: Ensured all changes compile successfully
+
+### Implementation Details
+
+#### 1. Markdown List Fix (`/components/ui/markdown.tsx`)
+
+**Before:**
+```tsx
+ul: ({ node, ...props }) => <ul className="list-disc list-inside mb-3 space-y-1" {...props} />
+li: ({ node, ...props }) => <li className="ml-4" {...props} />
+```
+
+**After:**
+```tsx
+ul: ({ node, ...props }) => <ul className="list-disc mb-3 space-y-1 pl-6" {...props} />
+li: ({ node, ...props }) => <li className="ml-0" {...props} />
+```
+
+**Fix**: Removed `list-inside` (causes misalignment), added `pl-6` padding to ul, removed unnecessary li margin.
+
+#### 2. Markdown Guidance (NotesContent.tsx)
+
+Added below content textarea:
+```tsx
+<p className="text-xs text-muted-foreground">
+  Supports Markdown: **bold**, *italic*, `code`, # Heading, - List, [link](url)
+</p>
+```
+
+Also added `font-mono` to textarea for consistent rendering preview.
+
+#### 3. Multi-Note Selection System
+
+**New State:**
+```tsx
+const [isSelectionMode, setIsSelectionMode] = useState(false);
+const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
+```
+
+**UI Changes:**
+- "Select Multiple" button activates selection mode
+- Cards show checkbox icons (Square/CheckSquare from lucide-react)
+- Click card to toggle selection
+- Selected cards have primary border + ring
+- Header shows "X selected" count
+- "Quiz Selected (X)" button appears when notes selected
+
+**Card Visual States:**
+- Normal mode: Hover effects, clickable to view
+- Selection mode: Checkboxes, border highlights, click to select
+- Footer hidden in selection mode (no individual quiz buttons)
+
+#### 4. QuestionGenerator Multi-Mode Support
+
+**Props Update:**
+```tsx
+interface QuestionGeneratorProps {
+  noteId?: string;      // Single note mode
+  noteIds?: string[];   // Multi-note mode
+  variant?: "default" | "compact";
+}
+```
+
+**Logic:**
+- Detects `noteIds.length > 1` → uses `/api/ai/quiz-multi` endpoint
+- Multi-note: JSON response (not streaming)
+- Single note: Streaming SSE response (existing behavior)
+- Both modes share same conversation UI
+
+**API Payload:**
+```tsx
+// Single note
+{ noteId: "uuid", messages: [...] }
+
+// Multi-note
+{ noteIds: ["uuid1", "uuid2", ...], messages: [...] }
+```
+
+#### 5. Multi-Note Quiz Dialog
+
+Separate dialog for multi-note quizzing:
+- Shows when selection mode active + notes selected + viewNoteId set
+- Header: "Multi-Note Quiz" title + count indicator
+- Passes `noteIds={Array.from(selectedNotes)}` to QuestionGenerator
+- Closing dialog exits selection mode and clears selections
+
+### User Flow
+
+1. **Enable Selection**: Click "Select Multiple" button
+2. **Select Notes**: Click cards to select (checkboxes appear, borders highlight)
+3. **Start Quiz**: Click "Quiz Selected (X)" button
+4. **AI Quiz**: Modal opens, AI generates question based on ALL selected notes
+5. **Conversation**: User answers, AI provides feedback and follow-ups
+6. **Exit**: Close modal → selection mode ends, selections cleared
+
+### Technical Benefits
+
+- ✅ **Better UX**: Visual feedback (checkboxes, borders, counts)
+- ✅ **Flexible API**: Reuses existing quiz-multi endpoint
+- ✅ **Clean State**: Set data structure prevents duplicates
+- ✅ **Conditional UI**: Same components adapt to mode
+- ✅ **No breaking changes**: Single-note flow unchanged
+
+### Files Modified
+
+- `Frontend/src/components/ui/markdown.tsx` - List alignment fix
+- `Frontend/src/components/notes/NotesContent.tsx` - Selection UI, multi-note dialog, Markdown hint
+- `Frontend/src/components/notes/QuestionGenerator.tsx` - Multi-mode support, dual API calls
+
+---
+
 ## Session 2026-02-04 : Markdown Support + AI Streaming (Story 2.3) ✅
 
 ### Objective

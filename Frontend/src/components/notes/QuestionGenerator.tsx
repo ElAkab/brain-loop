@@ -18,12 +18,14 @@ interface Message {
 }
 
 interface QuestionGeneratorProps {
-	noteId: string;
+	noteId?: string;
+	noteIds?: string[];
 	variant?: "default" | "compact";
 }
 
 export function QuestionGenerator({
 	noteId,
+	noteIds,
 	variant = "default",
 }: QuestionGeneratorProps) {
 	const [isOpen, setIsOpen] = useState(false);
@@ -52,7 +54,7 @@ export function QuestionGenerator({
 			throw new Error("No reader available");
 		}
 
-		let accumulatedContent = "";
+		let accumulatedContent = ""; // for the full message content
 
 		try {
 			while (true) {
@@ -110,10 +112,19 @@ export function QuestionGenerator({
 		setStreamingContent("");
 
 		try {
-			const res = await fetch("/api/ai/generate-questions", {
+			// Use appropriate endpoint based on whether we have single or multiple notes
+			const endpoint = noteIds && noteIds.length > 1 
+				? "/api/ai/quiz-multi" 
+				: "/api/ai/generate-questions";
+
+			const body = noteIds && noteIds.length > 1
+				? { noteIds, messages: [] }
+				: { noteId, messages: [] };
+
+			const res = await fetch(endpoint, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ noteId, messages: [] }),
+				body: JSON.stringify(body),
 			});
 
 			if (!res.ok) {
@@ -122,7 +133,13 @@ export function QuestionGenerator({
 				return;
 			}
 
-			await processStream(res);
+			// For multi-note, response is JSON, not stream
+			if (noteIds && noteIds.length > 1) {
+				const data = await res.json();
+				setMessages([{ role: "assistant", content: data.message }]);
+			} else {
+				await processStream(res);
+			}
 		} catch (error) {
 			console.error("Failed to start conversation:", error);
 			alert("Failed to start conversation");
@@ -142,16 +159,18 @@ export function QuestionGenerator({
 		setStreamingContent("");
 
 		try {
-			const res = await fetch("/api/ai/generate-questions", {
+			const endpoint = noteIds && noteIds.length > 1 
+				? "/api/ai/quiz-multi" 
+				: "/api/ai/generate-questions";
+
+			const body = noteIds && noteIds.length > 1
+				? { noteIds, messages: updatedMessages }
+				: { noteId, messages: updatedMessages };
+
+			const res = await fetch(endpoint, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					noteId,
-					messages: updatedMessages.map((m) => ({
-						role: m.role,
-						content: m.content,
-					})),
-				}),
+				body: JSON.stringify(body),
 			});
 
 			if (!res.ok) {
@@ -160,7 +179,19 @@ export function QuestionGenerator({
 				return;
 			}
 
-			await processStream(res, updatedMessages);
+			if (!res.ok) {
+				const error = await res.json();
+				alert(`Error: ${error.error}`);
+				return;
+			}
+
+			// For multi-note, response is JSON, not stream
+			if (noteIds && noteIds.length > 1) {
+				const data = await res.json();
+				setMessages([...updatedMessages, { role: "assistant", content: data.message }]);
+			} else {
+				await processStream(res, updatedMessages);
+			}
 		} catch (error) {
 			console.error("Failed to send message:", error);
 			alert("Failed to send message");

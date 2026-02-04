@@ -23,9 +23,9 @@ export function Markdown({ content, className = '' }: MarkdownProps) {
           h2: ({ node, ...props }) => <h2 className="text-xl font-semibold mb-3 text-primary" {...props} />,
           h3: ({ node, ...props }) => <h3 className="text-lg font-semibold mb-2" {...props} />,
           p: ({ node, ...props }) => <p className="mb-3 leading-relaxed" {...props} />,
-          ul: ({ node, ...props }) => <ul className="list-disc list-inside mb-3 space-y-1" {...props} />,
-          ol: ({ node, ...props }) => <ol className="list-decimal list-inside mb-3 space-y-1" {...props} />,
-          li: ({ node, ...props }) => <li className="ml-4" {...props} />,
+          ul: ({ node, ...props }) => <ul className="list-disc mb-3 space-y-1 pl-6" {...props} />,
+          ol: ({ node, ...props }) => <ol className="list-decimal mb-3 space-y-1 pl-6" {...props} />,
+          li: ({ node, ...props }) => <li className="ml-0" {...props} />,
           code: ({ node, inline, ...props }: any) =>
             inline ? (
               <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
