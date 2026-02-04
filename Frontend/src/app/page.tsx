@@ -6,11 +6,11 @@ export default function HomePage() {
 					Brain Loop
 				</h1>
 
-				<p className="text-xl md:text-2xl text-gray-600 mb-4">
+				<p className="text-xl md:text-2xl text-gray-400 mb-4">
 					AI-Powered Learning Through Active Recall
 				</p>
 
-				<p className="text-gray-500 mb-12 max-w-2xl mx-auto">
+				<p className="text-gray-400 mb-12 max-w-2xl mx-auto">
 					Transform your notes into interactive quizzes. Master any subject with
 					the power of AI.
 				</p>
@@ -48,7 +48,7 @@ export default function HomePage() {
 						</div>
 						<h3 className="font-bold mb-2 text-lg">AI Quizzes</h3>
 						<p className="text-sm text-gray-600">
-							Get personalized questions instantly
+							Get personalized questions with a single click
 						</p>
 					</div>
 

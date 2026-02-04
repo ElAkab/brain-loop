@@ -514,7 +514,7 @@ export function NotesContent({
 
 			{/* Multi-Note Quiz Dialog */}
 			{/* Render QuestionGenerator controlled by selection button */}
-			<QuestionGenerator
+			{/* <QuestionGenerator
 				noteIds={quizNoteIds ?? undefined}
 				open={isQuizOpen}
 				onOpenChange={(v) => {
@@ -525,7 +525,7 @@ export function NotesContent({
 						setIsQuizOpen(true);
 					}
 				}}
-			/>
+			/> */}
 		</div>
 	);
 }
