@@ -84,8 +84,8 @@
 	--chart-5: hsl(340 75% 55%);
 }
 
-/* Map CSS variables to Tailwind theme with @theme inline */
-@theme inline {
+/* Map CSS variables to Tailwind theme (fallback for tools that don't support @theme) */
+:root {
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
