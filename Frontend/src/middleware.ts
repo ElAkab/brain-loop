@@ -21,11 +21,13 @@ export async function middleware(request: NextRequest) {
 				getAll() {
 					return request.cookies.getAll();
 				},
-				setAll(cookiesToSet: Array<{
-          name: string;
-          value: string;
-          options?: any;
-        }>) {
+				setAll(
+					cookiesToSet: Array<{
+						name: string;
+						value: string;
+						options?: any;
+					}>,
+				) {
 					supabaseResponse = NextResponse.next({
 						request,
 					});

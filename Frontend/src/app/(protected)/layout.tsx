@@ -1,7 +1,12 @@
 import React from "react";
 import type { Metadata } from "next";
-import { AppShell } from "@/components/layout/AppShell";
+// Local fallback AppShell while "@/components/layout/AppShell" is not available.
+// Replace this with the real AppShell import when the component exists.
 import "../globals.css";
+
+const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+	return <div className="min-h-screen flex flex-col">{children}</div>;
+};
 
 export const metadata: Metadata = {
 	title: "Dashboard - Brain Loop",
