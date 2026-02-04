@@ -1,6 +1,6 @@
 "use client";
 
-import { signInWithGoogle, signInWithEmail } from "@/lib/auth/actions";
+import { signInWithGoogle, signInWithEmail, signInWithDemo } from "@/lib/auth/actions";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -24,12 +24,26 @@ export default function LoginPage() {
 		setLoading(false);
 	}
 
+	async function handleDemoSignIn() {
+		setLoading(true);
+		await signInWithDemo();
+	}
+
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 p-4">
 			<div className="w-full max-w-md p-8 rounded-2xl shadow-xl">
 				<div className="text-center mb-8">
 					<h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
 					<p className="text-gray-600">Sign in to continue learning</p>
+					
+					{/* Demo Account Notice */}
+					<div className="mt-4 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+						<p className="text-xs text-gray-300">
+							🧪 <strong>Want to test without signing in?</strong>
+							<br />
+							Use demo account: <code className="text-primary font-mono">demo@brainloop.app</code>
+						</p>
+					</div>
 				</div>
 
 				{message && (
@@ -82,6 +96,18 @@ export default function LoginPage() {
 							className="w-full py-3 px-4 bg-linear-to-br from-primary to-primary-900 hover:-translate-y-0.5 cursor-pointer text-white font-semibold rounded-lg transition shadow-lg hover:shadow-xl disabled:opacity-50"
 						>
 							{loading ? "Sending..." : "Send Magic Link"}
+						</button>
+					</form>
+
+					{/* Demo Account Button */}
+					<form action={handleDemoSignIn}>
+						<button
+							type="submit"
+							disabled={loading}
+							className="w-full py-3 px-4 border-2 border-primary/50 bg-primary/5 rounded-lg hover:bg-primary/10 transition cursor-pointer flex items-center justify-center gap-2 font-medium disabled:opacity-50"
+						>
+							<span>🎮</span>
+							<span>Try Demo Account</span>
 						</button>
 					</form>
 				</div>

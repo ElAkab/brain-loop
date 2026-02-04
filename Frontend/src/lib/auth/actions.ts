@@ -86,3 +86,20 @@ export async function getUserProfile() {
 		.single();
 	return profile;
 }
+
+// Sign in with demo account
+export async function signInWithDemo() {
+	const supabase = await createClient();
+	
+	const { data, error } = await supabase.auth.signInWithPassword({
+		email: "demo@brainloop.app",
+		password: process.env.DEMO_ACCOUNT_PASSWORD || "",
+	});
+
+	if (error) {
+		console.error("Demo sign in error:", error);
+		return { error: error.message };
+	}
+
+	redirect("/dashboard");
+}
