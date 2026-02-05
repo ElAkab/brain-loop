@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Markdown } from "@/components/ui/markdown";
 
 interface Message {
 	role: "user" | "assistant";
@@ -291,7 +292,11 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 										: "bg-gray-200 text-gray-900"
 								}`}
 							>
-								<p className="whitespace-pre-wrap">{msg.content}</p>
+								{msg.role === "assistant" ? (
+									<Markdown content={msg.content} />
+								) : (
+									<p className="whitespace-pre-wrap">{msg.content}</p>
+								)}
 							</div>
 						</div>
 					))}

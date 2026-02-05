@@ -188,7 +188,8 @@ export function QuestionGenerator({
 
 							if (content) {
 								accumulatedContent += content;
-								setStreamingContent(accumulatedContent);
+								// Show typing indicator instead of raw content
+								setStreamingContent("✨ Thinking...");
 							}
 						} catch (e) {
 							// ignore incomplete JSON
@@ -212,6 +213,26 @@ export function QuestionGenerator({
 		setStreamingContent("");
 
 		try {
+			// Fetch note data to get categoryId and previous session
+			let fetchedCategoryId: string | undefined;
+			
+			if (noteId) {
+				const noteRes = await fetch(`/api/notes/${noteId}`);
+				if (noteRes.ok) {
+					const noteData = await noteRes.json();
+					fetchedCategoryId = noteData.category_id;
+					setCategoryId(fetchedCategoryId);
+				}
+			} else if (noteIds && noteIds.length > 0) {
+				// For multi-note, get first note's category
+				const noteRes = await fetch(`/api/notes/${noteIds[0]}`);
+				if (noteRes.ok) {
+					const noteData = await noteRes.json();
+					fetchedCategoryId = noteData.category_id;
+					setCategoryId(fetchedCategoryId);
+				}
+			}
+
 			const endpoint =
 				noteIds && noteIds.length > 1
 					? "/api/ai/quiz-multi"
@@ -238,6 +259,12 @@ export function QuestionGenerator({
 				} catch (e) {}
 				alert(`Error: ${errorBody?.error || res.statusText}`);
 				return;
+			}
+
+			// Extract model from response headers
+			const modelUsed = res.headers.get("X-Model-Used");
+			if (modelUsed) {
+				setCurrentModel(modelUsed);
 			}
 
 			await processStream(res);

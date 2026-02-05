@@ -126,6 +126,26 @@ export async function POST(request: NextRequest) {
 		const categoryIds = [...new Set(notes.map(n => n.category_id).filter(Boolean))];
 		const categoryId = categoryIds.length === 1 ? categoryIds[0] : null;
 
+		// Fetch last study session for these notes to get previous AI feedback
+		const { data: lastSession } = await supabase
+			.from("study_sessions")
+			.select("ai_feedback")
+			.overlaps("note_ids", noteIds)
+			.eq("user_id", user.id)
+			.order("created_at", { ascending: false })
+			.limit(1)
+			.single();
+
+		let previousConclusion = "";
+		if (lastSession?.ai_feedback) {
+			try {
+				const feedback = JSON.parse(lastSession.ai_feedback);
+				previousConclusion = feedback.conclusion || "";
+			} catch (e) {
+				// Ignore parse errors
+			}
+		}
+
 		// Combine all notes content
 		const combinedContent = notes
 			.map((note) => `**${note.title}**\n${note.content}`)
@@ -139,6 +159,7 @@ The student has selected ${notes.length} note${notes.length > 1 ? "s" : ""} from
 
 Combined Note Content:
 ${combinedContent}
+${previousConclusion ? `\n\nPrevious Session Insight:\n${previousConclusion}\n\nUse this to build upon the student's knowledge and address previous weaknesses.` : ""}
 
 **CRITICAL: Your response MUST be valid JSON with this exact structure:**
 {
@@ -255,6 +276,7 @@ Keep total "chat_response" under 100 words.
 						"Content-Type": "text/event-stream",
 						"Cache-Control": "no-cache",
 						Connection: "keep-alive",
+						"X-Model-Used": model,
 					},
 				});
 			} catch (err) {

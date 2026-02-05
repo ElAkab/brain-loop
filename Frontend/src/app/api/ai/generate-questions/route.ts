@@ -52,6 +52,26 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Note not found" }, { status: 404 });
 		}
 
+		// Fetch last study session for this note to get previous AI feedback
+		const { data: lastSession } = await supabase
+			.from("study_sessions")
+			.select("ai_feedback")
+			.contains("note_ids", [noteId])
+			.eq("user_id", user.id)
+			.order("created_at", { ascending: false })
+			.limit(1)
+			.single();
+
+		let previousConclusion = "";
+		if (lastSession?.ai_feedback) {
+			try {
+				const feedback = JSON.parse(lastSession.ai_feedback);
+				previousConclusion = feedback.conclusion || "";
+			} catch (e) {
+				// Ignore parse errors
+			}
+		}
+
 		// Build conversation messages
 		const categoryName = note.categories?.name || "General";
 		const systemPrompt = `You are a helpful AI tutor helping students review their study notes through interactive conversation.
@@ -74,6 +94,7 @@ Your role:
 Category: ${categoryName}
 Note Content:
 ${note.content}
+${previousConclusion ? `\n\nPrevious Session Insight:\n${previousConclusion}\n\nUse this to build upon the student's knowledge and address previous weaknesses.` : ""}
 
 Guidelines for "chat_response":
 - If this is the first message, ask ONE relevant question directly
@@ -170,6 +191,7 @@ Guidelines for feedback fields:
 						"Content-Type": "text/event-stream",
 						"Cache-Control": "no-cache",
 						Connection: "keep-alive",
+						"X-Model-Used": model,
 					},
 				});
 			} catch (error) {
