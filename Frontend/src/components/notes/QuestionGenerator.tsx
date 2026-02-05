@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/ui/markdown";
+import { TokenWarning } from "@/components/TokenWarning";
 
 interface Message {
 	role: "user" | "assistant";
@@ -49,6 +50,7 @@ export function QuestionGenerator({
 	const [currentModel, setCurrentModel] = useState<string>("unknown");
 	const [categoryId, setCategoryId] = useState<string | undefined>();
 	const [sessionStartTime, setSessionStartTime] = useState<number>(0);
+	const [quotaExhausted, setQuotaExhausted] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
 	const scrollToBottom = () => {
@@ -302,6 +304,13 @@ export function QuestionGenerator({
 				try {
 					errorBody = await res.json();
 				} catch (e) {}
+				
+				// Check if quota exhausted
+				if (errorBody?.code === "QUOTA_EXHAUSTED") {
+					setQuotaExhausted(true);
+					return;
+				}
+				
 				alert(`Error: ${errorBody?.error || res.statusText}`);
 				return;
 			}
@@ -352,6 +361,15 @@ export function QuestionGenerator({
 						<DialogTitle>AI Study Session</DialogTitle>
 					</DialogHeader>
 
+					{quotaExhausted ? (
+						<TokenWarning 
+							onRetry={() => {
+								setQuotaExhausted(false);
+								startConversation();
+							}}
+						/>
+					) : (
+						<>
 					{/* Messages */}
 					<div className="flex-1 overflow-y-auto space-y-4 py-4">
 						{messages.map((msg, idx) => (
@@ -415,6 +433,8 @@ export function QuestionGenerator({
 							</Button>
 						</div>
 					</div>
+					</>
+					)}
 				</DialogContent>
 			</Dialog>
 		</>

@@ -15,6 +15,12 @@ const FREE_MODELS = [
 	"z-ai/glm-4.5-air:free",
 	"openai/gpt-oss-120b:free",
 	"stepfun/step-3.5-flash:free",
+
+	"meta-llama/llama-3.3-70b-instruct:free",
+	"qwen/qwen-3-235b-a22b:free",
+	"mistralai/mistral-small-3.1-24b:free",
+	"google/gemma-3-4b-instruct:free",
+	"openrouter/free  (auto-router)",
 ];
 
 export async function POST(request: NextRequest) {
@@ -84,6 +90,7 @@ export async function POST(request: NextRequest) {
 3. DO NOT make assumptions about the student's knowledge unless they explicitly demonstrate it in their answers
 4. ONLY base your assessment on: the provided note content + the student's actual responses in THIS session
 
+Responds only to the following JSON format, with all keys and values ​​enclosed in quotation marks, and without any escaped characters.
 **Required JSON structure:**
 {
   "chat_response": "Your conversational response (use Markdown)",
@@ -210,19 +217,23 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 														jsonData = {
 															analysis: jsonObj.analysis || "",
 															weaknesses: jsonObj.weaknesses || "",
-															conclusion: jsonObj.conclusion || ""
+															conclusion: jsonObj.conclusion || "",
 														};
 
 														// Stream only chat_response content
 														if (jsonObj.chat_response) {
 															const chatPart = jsonObj.chat_response.substring(
-																fullResponse.lastIndexOf(jsonObj.chat_response) === -1 ? 0 : 
-																fullResponse.split(jsonObj.chat_response)[0].length
+																fullResponse.lastIndexOf(
+																	jsonObj.chat_response,
+																) === -1
+																	? 0
+																	: fullResponse.split(jsonObj.chat_response)[0]
+																			.length,
 															);
-															
+
 															if (chatPart) {
-																const streamChunk = `data: ${JSON.stringify({ 
-																	choices: [{ delta: { content: chatPart } }] 
+																const streamChunk = `data: ${JSON.stringify({
+																	choices: [{ delta: { content: chatPart } }],
 																})}\n\n`;
 																controller.enqueue(encoder.encode(streamChunk));
 															}
@@ -271,6 +282,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			{
 				error:
 					"All AI models are currently unavailable. Please try again later.",
+				code: "QUOTA_EXHAUSTED"
 			},
 			{ status: 503 },
 		);

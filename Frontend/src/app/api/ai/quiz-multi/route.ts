@@ -11,6 +11,12 @@ const FREE_MODELS = [
 	"z-ai/glm-4.5-air:free",
 	"openai/gpt-oss-120b:free",
 	"stepfun/step-3.5-flash:free",
+
+	"meta-llama/llama-3.3-70b-instruct:free",
+	"qwen/qwen-3-235b-a22b:free",
+	"mistralai/mistral-small-3.1-24b:free",
+	"google/gemma-3-4b-instruct:free",
+	"openrouter/free  (auto-router)",
 ];
 
 let currentModelIndex = 0;
@@ -122,7 +128,9 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Get category_id (use first note's category, or null if mixed)
-		const categoryIds = [...new Set(notes.map(n => n.category_id).filter(Boolean))];
+		const categoryIds = [
+			...new Set(notes.map((n) => n.category_id).filter(Boolean)),
+		];
 		const categoryId = categoryIds.length === 1 ? categoryIds[0] : null;
 
 		// Fetch last study session for these notes to get previous AI feedback
@@ -296,19 +304,23 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 														jsonData = {
 															analysis: jsonObj.analysis || "",
 															weaknesses: jsonObj.weaknesses || "",
-															conclusion: jsonObj.conclusion || ""
+															conclusion: jsonObj.conclusion || "",
 														};
 
 														// Stream only chat_response content
 														if (jsonObj.chat_response) {
 															const chatPart = jsonObj.chat_response.substring(
-																fullResponse.lastIndexOf(jsonObj.chat_response) === -1 ? 0 : 
-																fullResponse.split(jsonObj.chat_response)[0].length
+																fullResponse.lastIndexOf(
+																	jsonObj.chat_response,
+																) === -1
+																	? 0
+																	: fullResponse.split(jsonObj.chat_response)[0]
+																			.length,
 															);
-															
+
 															if (chatPart) {
-																const streamChunk = `data: ${JSON.stringify({ 
-																	choices: [{ delta: { content: chatPart } }] 
+																const streamChunk = `data: ${JSON.stringify({
+																	choices: [{ delta: { content: chatPart } }],
 																})}\n\n`;
 																controller.enqueue(encoder.encode(streamChunk));
 															}
@@ -356,6 +368,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			{
 				error:
 					"All AI models are currently unavailable. Please try again later.",
+				code: "QUOTA_EXHAUSTED"
 			},
 			{ status: 503 },
 		);

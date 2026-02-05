@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Markdown } from "@/components/ui/markdown";
+import { TokenWarning } from "@/components/TokenWarning";
 
 interface Message {
 	role: "user" | "assistant";
@@ -19,6 +20,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	const [loading, setLoading] = useState(false);
 	const [hasStarted, setHasStarted] = useState(false);
 	const [startTime] = useState(Date.now());
+	const [quotaExhausted, setQuotaExhausted] = useState(false);
 
 	// Auto-start quiz when component mounts
 	useEffect(() => {
@@ -125,8 +127,19 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 			});
 
 			if (!res.ok) {
-				const errorText = await res.text();
-				console.error("Send message error:", errorText);
+				let errorBody: any = null;
+				try {
+					errorBody = await res.json();
+				} catch (e) {
+					console.error("Send message error:", e);
+				}
+				
+				// Check if quota exhausted
+				if (errorBody?.code === "QUOTA_EXHAUSTED") {
+					setQuotaExhausted(true);
+					return;
+				}
+				
 				alert("Error: Failed to send message");
 				return;
 			}
@@ -225,6 +238,17 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	return (
 		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 			<div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+				{quotaExhausted ? (
+					<div className="p-8">
+						<TokenWarning 
+							onRetry={() => {
+								setQuotaExhausted(false);
+								startQuiz();
+							}}
+						/>
+					</div>
+				) : (
+					<>
 				{/* Header */}
 				<div className="flex justify-between items-center p-4 border-b">
 					<h2 className="text-xl font-semibold">
@@ -326,6 +350,8 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 						</button>
 					</div>
 				</div>
+				</>
+				)}
 			</div>
 		</div>
 	);
