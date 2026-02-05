@@ -4,7 +4,7 @@ This document tracks the development journey of Brain Loop, documenting each ses
 
 ---
 
-## Session 2026-02-05: Progress Tracking System (Story 3.1) 🚧
+## Session 2026-02-05: Progress Tracking System (Story 3.1) ✅
 
 ### Objective
 
@@ -26,6 +26,9 @@ With core features (notes, categories, AI quizzing) complete, Story 3.1 adds the
 - ✅ **API route creation**: Built POST/GET endpoints for session management
 - ✅ **Component enhancement**: Added automatic session saving on quiz completion
 - ✅ **Documentation updates**: Updated architecture.md with new data model
+- ✅ **AI prompt engineering**: Fixed chain-of-thought exposure and phantom knowledge issues
+- ✅ **Model filtering**: Removed reasoning models to prevent internal reasoning exposure
+- ✅ **Debug logging**: Added console logging to trace session data flow
 
 ### Implementation Details
 
@@ -86,16 +89,55 @@ Enhanced QuestionGenerator component:
 - ✅ API routes functional
 - ✅ Frontend auto-save working
 - ⏳ Need to run migrations in Supabase
-- ⏳ AI feedback generation (JSON response format) - TODO
+- ✅ AI feedback generation (JSON response format) - DONE
 - ⏳ Progress visualization UI - Future
+
+### Critical Bug Fixes - AI Behavior
+
+#### Problem 1: Chain-of-Thought Exposure
+
+**Issue**: Reasoning models (deepseek-r1t2-chimera, deepseek-r1t-chimera) exposed internal thinking to users.
+
+**Root Cause**: These models are designed to show their reasoning process, which cluttered the user experience.
+
+**Solution**:
+- Removed all reasoning models from `FREE_MODELS` list
+- Added explicit prompt instruction: "DO NOT include your internal reasoning, thinking process, or chain-of-thought"
+- Updated both single-note and multi-note endpoints
+
+**Files**: `Frontend/src/app/api/ai/generate-questions/route.ts`, `Frontend/src/app/api/ai/quiz-multi/route.ts`
+
+#### Problem 2: Phantom Knowledge Inference
+
+**Issue**: AI assumed user knowledge based on non-existent or irrelevant session data.
+
+**Root Cause**: 
+- Prompt said "Use this to build upon..." which encouraged assumptions
+- No validation that historical data was contextually relevant
+- Unclear that previous sessions were context, not current state
+
+**Solution**:
+- Changed prompt: "Previous Session Insight (use ONLY as context, do NOT assume current knowledge)"
+- Added console logs: `console.log("Using previous session conclusion: ...")` to trace data flow
+- Strict instruction: "ONLY base your assessment on: the provided note content + the student's actual responses in THIS session"
+- Metadata fields must reflect "THIS session only"
+
+**Result**: AI now only assesses based on actual user responses in the current conversation.
+
+#### Problem 3: Prompt Structure Improvements
+
+**Changes**:
+- **CRITICAL INSTRUCTIONS** section at top (impossible to miss)
+- "ONLY valid JSON - NO extra text before or after"
+- Clear separation: `chat_response` (user-facing) vs metadata (internal analytics)
+- Explicit definitions: what "analysis", "weaknesses", "conclusion" mean
 
 ### Next Steps
 
-1. **Execute migrations in Supabase Dashboard**
-2. **Modify AI prompts** to return structured JSON feedback
-3. **Update frontend** to parse and display JSON responses
-4. **Test session saving** in production
-5. **Create progress dashboard** (Story 3.2+)
+1. **Test AI fixes** in production with clean session data
+2. **Monitor console logs** to verify session data flow
+3. **User testing** to confirm no reasoning exposure
+4. **Create progress dashboard** (Story 3.2+)
 
 ---
 
