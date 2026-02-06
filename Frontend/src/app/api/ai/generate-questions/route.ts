@@ -168,7 +168,8 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 					continue; // Try next model
 				}
 
-				// Parse stream and extract chat_response for streaming
+				// Forward OpenRouter stream directly to client
+				// The frontend will parse the standard SSE format
 				const encoder = new TextEncoder();
 				const stream = new ReadableStream({
 					async start(controller) {
@@ -187,7 +188,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 							while (true) {
 								const { done, value } = await reader.read();
 								if (done) {
-									// Parse final JSON and extract metadata
+									// Parse final accumulated JSON to extract metadata
 									try {
 										const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
 										if (jsonMatch) {
