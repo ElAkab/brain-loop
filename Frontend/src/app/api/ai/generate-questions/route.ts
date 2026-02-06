@@ -231,11 +231,11 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 		}
 
 		const isPremium = subscriptionTier === "PRO";
-		// ! const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS; // temporaire : essayer les modèles gratuits même pour les PRO pendant le développement
+		const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS; // temporaire : essayer les modèles gratuits même pour les PRO pendant le développement
 
 		// Try each model in sequence until one succeeds
 		let lastError = null;
-		for (const model of PREMIUM_MODELS) {
+		for (const model of modelsToTry) {
 			try {
 				const response = await fetch(
 					`${OPENROUTER_BASE_URL}/chat/completions`,

@@ -175,10 +175,7 @@ export async function POST(request: NextRequest) {
 		const categoryId = categoryIds.length === 1 ? categoryIds[0] : null;
 
 		const selectedNoteIds = new Set(noteIds);
-		const feedbackLimit = Math.min(
-			50,
-			Math.max(noteIds.length * 5, 10),
-		);
+		const feedbackLimit = Math.min(50, Math.max(noteIds.length * 5, 10));
 		const { data: recentSessions, error: recentSessionsError } = await supabase
 			.from("study_sessions")
 			.select("note_ids, ai_feedback, created_at")
@@ -188,7 +185,10 @@ export async function POST(request: NextRequest) {
 			.limit(feedbackLimit);
 
 		if (recentSessionsError) {
-			console.warn("Failed to fetch recent study sessions:", recentSessionsError);
+			console.warn(
+				"Failed to fetch recent study sessions:",
+				recentSessionsError,
+			);
 		}
 
 		const conclusionByNote = new Map<string, string>();
@@ -326,11 +326,11 @@ ${previousInsightsBlock}
 			}
 		}
 
-		// ! const isPremium = subscriptionTier === "PRO";
-		// ! const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS; // Temporaire
+		const isPremium = subscriptionTier === "PRO";
+		const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS; // Temporaire
 
 		let lastError: any = null;
-		for (const model of PREMIUM_MODELS) {
+		for (const model of modelsToTry) {
 			try {
 				const response = await fetch(
 					`${OPENROUTER_BASE_URL}/chat/completions`,
