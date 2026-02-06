@@ -174,25 +174,70 @@ export async function POST(request: NextRequest) {
 		];
 		const categoryId = categoryIds.length === 1 ? categoryIds[0] : null;
 
-		// Fetch last study session for these notes to get previous AI feedback
-		const { data: lastSession } = await supabase
+		const selectedNoteIds = new Set(noteIds);
+		const feedbackLimit = Math.min(
+			50,
+			Math.max(noteIds.length * 5, 10),
+		);
+		const { data: recentSessions, error: recentSessionsError } = await supabase
 			.from("study_sessions")
-			.select("ai_feedback")
+			.select("note_ids, ai_feedback, created_at")
 			.overlaps("note_ids", noteIds)
 			.eq("user_id", user.id)
 			.order("created_at", { ascending: false })
-			.limit(1)
-			.single();
+			.limit(feedbackLimit);
 
-		let previousConclusion = "";
-		if (lastSession?.ai_feedback) {
-			try {
-				const feedback = JSON.parse(lastSession.ai_feedback);
-				previousConclusion = feedback.conclusion || "";
-			} catch (e) {
-				// Ignore parse errors
-			}
+		if (recentSessionsError) {
+			console.warn("Failed to fetch recent study sessions:", recentSessionsError);
 		}
+
+		const conclusionByNote = new Map<string, string>();
+		for (const session of recentSessions || []) {
+			if (!session?.ai_feedback) continue;
+
+			let feedback: any = session.ai_feedback;
+			if (typeof feedback === "string") {
+				try {
+					feedback = JSON.parse(feedback);
+				} catch {
+					continue;
+				}
+			}
+
+			if (!feedback || typeof feedback !== "object") continue;
+			const conclusion =
+				typeof feedback.conclusion === "string" ? feedback.conclusion : "";
+			if (!conclusion) continue;
+
+			const sessionNoteIds = Array.isArray(session.note_ids)
+				? session.note_ids
+				: [];
+
+			for (const noteId of sessionNoteIds) {
+				if (!selectedNoteIds.has(noteId)) continue;
+				if (!conclusionByNote.has(noteId)) {
+					conclusionByNote.set(noteId, conclusion);
+				}
+			}
+
+			if (conclusionByNote.size >= selectedNoteIds.size) break;
+		}
+
+		const noteTitleMap = new Map(
+			notes.map((note) => [note.id, note.title || "Untitled note"]),
+		);
+		const insightLines = noteIds
+			.map((noteId) => {
+				const conclusion = conclusionByNote.get(noteId);
+				if (!conclusion) return null;
+				const title = noteTitleMap.get(noteId) || "Untitled note";
+				return `- ${title}: ${conclusion}`;
+			})
+			.filter(Boolean);
+		const previousInsightsBlock =
+			insightLines.length > 0
+				? `\n\nPrevious Session Insights (per note, use ONLY as context, do NOT assume current knowledge):\n${insightLines.join("\n")}`
+				: "";
 
 		// Combine all notes content
 		const combinedContent = notes
@@ -227,7 +272,7 @@ The student has selected ${notes.length} note${notes.length > 1 ? "s" : ""} from
 
 Combined Note Content:
 ${combinedContent}
-${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NOT assume current knowledge):\n${previousConclusion}` : ""}
+${previousInsightsBlock}
 
 **Guidelines for the chat response:**
 - If this is the first message: ask ONE relevant, open-ended question that tests understanding across the selected notes

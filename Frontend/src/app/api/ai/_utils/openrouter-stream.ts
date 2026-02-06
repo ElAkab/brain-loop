@@ -12,6 +12,14 @@ const EMPTY_METADATA: StreamMetadata = {
 	conclusion: "",
 };
 
+function getHoldLength(text: string, delimiter: string): number {
+	const maxLen = Math.min(delimiter.length - 1, text.length);
+	for (let len = maxLen; len > 0; len -= 1) {
+		if (text.endsWith(delimiter.slice(0, len))) return len;
+	}
+	return 0;
+}
+
 function parseMetadata(raw: string): StreamMetadata {
 	const trimmed = raw.trim();
 	if (!trimmed) return EMPTY_METADATA;
@@ -77,14 +85,17 @@ export function streamOpenRouterResponse(
 					if (idx !== -1) delimiterIndex = idx;
 				}
 
-				const chatText =
-					delimiterIndex === null
-						? fullText
-						: fullText.slice(0, delimiterIndex);
+				const safeEnd =
+					delimiterIndex !== null
+						? delimiterIndex
+						: Math.max(
+								0,
+								fullText.length - getHoldLength(fullText, METADATA_DELIMITER),
+							);
 
-				if (chatText.length > lastSentLength) {
-					const newContent = chatText.slice(lastSentLength);
-					lastSentLength = chatText.length;
+				if (safeEnd > lastSentLength) {
+					const newContent = fullText.slice(lastSentLength, safeEnd);
+					lastSentLength = safeEnd;
 					enqueueSSE(controller, {
 						choices: [{ delta: { content: newContent } }],
 					});
@@ -133,6 +144,15 @@ export function streamOpenRouterResponse(
 			} finally {
 				if (!doneSent) {
 					doneSent = true;
+					const finalEnd =
+						delimiterIndex !== null ? delimiterIndex : fullText.length;
+					if (finalEnd > lastSentLength) {
+						const remaining = fullText.slice(lastSentLength, finalEnd);
+						lastSentLength = finalEnd;
+						enqueueSSE(controller, {
+							choices: [{ delta: { content: remaining } }],
+						});
+					}
 					const metadata = parseMetadata(metadataText);
 					enqueueSSE(controller, { type: "metadata", data: metadata });
 					enqueueDone(controller);
