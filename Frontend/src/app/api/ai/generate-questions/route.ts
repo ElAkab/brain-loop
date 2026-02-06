@@ -1,3 +1,7 @@
+import {
+	streamOpenRouterResponse,
+	METADATA_DELIMITER,
+} from "@/app/api/ai/_utils/openrouter-stream";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -6,7 +10,6 @@ const OPENROUTER_PROD_API_KEY = process.env.OPENROUTER_PROD_API_KEY;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
-// List of free models to rotate through
 // List of free models to rotate through
 const FREE_MODELS = [
 	// "google/gemini-2.0-flash-exp:free", // indisponible (404)
@@ -126,19 +129,24 @@ export async function POST(request: NextRequest) {
 		const systemPrompt = `You are a helpful AI tutor helping students review their study notes through interactive conversation.
 
 **CRITICAL INSTRUCTIONS:**
-1. Your response MUST be ONLY valid JSON - NO extra text before or after
-2. DO NOT include your internal reasoning, thinking process, or chain-of-thought
-3. DO NOT make assumptions about the student's knowledge unless they explicitly demonstrate it in their answers
-4. ONLY base your assessment on: the provided note content + the student's actual responses in THIS session
+1. DO NOT include your internal reasoning, thinking process, or chain-of-thought
+2. DO NOT make assumptions about the student's knowledge unless they explicitly demonstrate it in their answers
+3. ONLY base your assessment on: the provided note content + the student's actual responses in THIS session
 
-Responds only to the following JSON format, with all keys and values ​​enclosed in quotation marks, and without any escaped characters.
-**Required JSON structure:**
-{
-  "chat_response": "Your conversational response (use Markdown)",
-  "analysis": "What the student has demonstrated understanding of in THIS session",
-  "weaknesses": "Gaps identified based on THIS session's answers only",
-  "conclusion": "Strategic insight for future AI sessions based on THIS session only"
-}
+**OUTPUT FORMAT (STRICT):**
+Return two parts in this exact order:
+1) Your chat response in Markdown (no JSON, no code fences)
+2) The delimiter line: <<METADATA_JSON>> (must be preceded by two newlines and followed by a newline)
+3) A single valid JSON object with keys "analysis", "weaknesses", "conclusion"
+
+**Example:**
+Correct ✅ Here is a short explanation...${METADATA_DELIMITER}{"analysis":"...","weaknesses":"...","conclusion":"..."}
+
+**Rules:**
+- Do NOT include the delimiter anywhere else
+- The JSON must be valid and use double quotes
+- Keep the chat response under 100 words
+- Do NOT expose your reasoning process
 
 **Context for THIS session:**
 Category: ${categoryName}
@@ -146,7 +154,7 @@ Note Content:
 ${note.content}
 ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NOT assume current knowledge):\n${previousConclusion}` : ""}
 
-**Guidelines for "chat_response":**
+**Guidelines for the chat response:**
 - If this is the first message: ask ONE relevant, open-ended question about the note content
 - Respond in the same language as the student's last message
 - Use Markdown: **bold**, bullets where helpful
@@ -155,8 +163,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
   2. Brief explanation (under 60 words, use Markdown)
   3. Ask ONE thoughtful follow-up question
 - Be conversational, encouraging, focused
-- Keep "chat_response" under 100 words
-- DO NOT expose your reasoning process
+- Keep the chat response under 100 words
 
 **Guidelines for metadata fields:**
 - "analysis": ONLY concepts the student has explicitly demonstrated in their answers
@@ -171,7 +178,10 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 
 		// Call OpenRouter API with model rotation
 		// Decide which OpenRouter key to use. In production we require the PROD key.
-		const OPENROUTER_API_KEY = NODE_ENV === "production" ? OPENROUTER_PROD_API_KEY : (OPENROUTER_DEV_API_KEY || OPENROUTER_PROD_API_KEY);
+		const OPENROUTER_API_KEY =
+			NODE_ENV === "production"
+				? OPENROUTER_PROD_API_KEY
+				: OPENROUTER_DEV_API_KEY || OPENROUTER_PROD_API_KEY;
 
 		if (!OPENROUTER_API_KEY) {
 			return NextResponse.json(
@@ -180,11 +190,17 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			);
 		}
 
-		if (NODE_ENV === "production" && OPENROUTER_API_KEY === OPENROUTER_DEV_API_KEY) {
-			console.error("OpenRouter: refusing to use development API key in production");
+		if (
+			NODE_ENV === "production" &&
+			OPENROUTER_API_KEY === OPENROUTER_DEV_API_KEY
+		) {
+			console.error(
+				"OpenRouter: refusing to use development API key in production",
+			);
 			return NextResponse.json(
 				{
-					error: "OpenRouter API key misconfigured for production. Set OPENROUTER_PROD_API_KEY.",
+					error:
+						"OpenRouter API key misconfigured for production. Set OPENROUTER_PROD_API_KEY.",
 					code: "invalid_api_key",
 				},
 				{ status: 500 },
@@ -292,112 +308,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 					continue;
 				}
 
-				// Forward OpenRouter stream directly to client
-				// The frontend will parse the standard SSE format
-				const encoder = new TextEncoder();
-				const stream = new ReadableStream({
-					async start(controller) {
-						const reader = response.body?.getReader();
-						const decoder = new TextDecoder();
-						if (!reader) {
-							controller.close();
-							return;
-						}
-
-						let fullResponse = "";
-						let lastSentLength = 0;
-						let jsonData = { analysis: "", weaknesses: "", conclusion: "" };
-
-						try {
-							while (true) {
-								const { done, value } = await reader.read();
-								if (done) {
-									// Parse final accumulated JSON to extract metadata
-									try {
-										const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-										if (jsonMatch) {
-											const jsonObj = JSON.parse(jsonMatch[0]);
-											jsonData = {
-												analysis: jsonObj.analysis || "",
-												weaknesses: jsonObj.weaknesses || "",
-												conclusion: jsonObj.conclusion || "",
-											};
-										}
-									} catch (e) {
-										console.warn("Failed to parse final JSON:", e);
-									}
-
-									// Send final metadata as JSON chunk
-									const metaChunk = `data: ${JSON.stringify({ type: "metadata", data: jsonData })}\n\n`;
-									controller.enqueue(encoder.encode(metaChunk));
-									controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-									break;
-								}
-
-								const chunk = decoder.decode(value, { stream: true });
-								const lines = chunk.split("\n");
-
-								for (const line of lines) {
-									if (line.startsWith("data: ")) {
-										const data = line.slice(6);
-										if (data === "[DONE]") continue;
-
-										try {
-											const parsed = JSON.parse(data);
-											const content = parsed.choices?.[0]?.delta?.content;
-
-											if (content) {
-												fullResponse += content;
-
-												// Try to extract chat_response incrementally
-												const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-												if (jsonMatch) {
-													try {
-														const jsonObj = JSON.parse(jsonMatch[0]);
-														if (jsonObj.chat_response) {
-															// Stream only NEW characters from chat_response
-															const currentLength =
-																jsonObj.chat_response.length;
-															if (currentLength > lastSentLength) {
-																const newContent =
-																	jsonObj.chat_response.substring(
-																		lastSentLength,
-																	);
-																lastSentLength = currentLength;
-
-																const streamChunk = `data: ${JSON.stringify({
-																	choices: [{ delta: { content: newContent } }],
-																})}\n\n`;
-																controller.enqueue(encoder.encode(streamChunk));
-															}
-														}
-													} catch (e) {
-														// Partial JSON, keep accumulating
-													}
-												}
-											}
-										} catch (e) {
-											// Ignore unparseable chunks
-										}
-									}
-								}
-							}
-						} catch (error) {
-							console.error("Stream error:", error);
-						} finally {
-							controller.close();
-						}
-					},
-				});
-
-				return new Response(stream, {
-					headers: {
-						"Content-Type": "text/event-stream",
-						"Cache-Control": "no-cache",
-						Connection: "keep-alive",
-						"X-Model-Used": model,
-					},
-				});
+				return streamOpenRouterResponse(response, model);
 			} catch (error) {
 				console.warn(`Model ${model} threw error:`, error);
 				lastError = error;
@@ -407,13 +318,14 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 
 		// All models failed
 		console.error("All models failed. Last error:", lastError);
-		
+
 		// Determine appropriate error code based on last error
-		const errorCode = lastError?.error?.code === 429 || 
-		                  (typeof lastError === 'object' && lastError?.message?.includes('rate'))
-			? "RATE_LIMIT_EXCEEDED"
-			: "ALL_MODELS_FAILED";
-		
+		const errorCode =
+			lastError?.error?.code === 429 ||
+			(typeof lastError === "object" && lastError?.message?.includes("rate"))
+				? "RATE_LIMIT_EXCEEDED"
+				: "ALL_MODELS_FAILED";
+
 		return NextResponse.json(
 			{
 				error:

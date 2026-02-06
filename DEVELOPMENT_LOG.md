@@ -4,6 +4,35 @@ This document tracks the development journey of Brain Loop, documenting each ses
 
 ---
 
+## Session 2026-02-06: Streaming + Multi-turn Fixes ✅
+
+### Objective
+
+Fix OpenRouter streaming reliability and multi-turn replies by switching to a stream-friendly output format with a metadata delimiter, and harden SSE parsing on both backend and frontend.
+
+### GitHub Copilot CLI Features Used
+
+- ✅ **Prompt refactor**: Updated system prompts to use delimiter + metadata JSON format
+- ✅ **Streaming utilities**: Added shared SSE helpers for OpenRouter parsing and client consumption
+- ✅ **Error handling**: Normalized TokenWarning usage with explicit error mapping
+- ✅ **Component refactor**: Consolidated streaming logic in QuestionGenerator and MultiNoteQuiz
+
+### Implementation Details
+
+- New server helper `Frontend/src/app/api/ai/_utils/openrouter-stream.ts` to parse OpenRouter SSE, stream chat text, and emit metadata chunks.
+- New client helper `Frontend/src/lib/ai/sse.ts` for buffered SSE parsing with graceful completion.
+- Prompts updated in `Frontend/src/app/api/ai/generate-questions/route.ts` and `Frontend/src/app/api/ai/quiz-multi/route.ts` to use the `<<METADATA_JSON>>` delimiter.
+- UI now maps backend error codes to TokenWarning variants, avoiding false “quota” alerts.
+
+### Testing
+
+- ✅ Single-note streaming renders progressively and continues after user replies
+- ✅ Multi-note streaming renders progressively and continues after user replies
+- ✅ Metadata stored in `window.__lastAIFeedback` and saved to study sessions
+- ✅ TokenWarning shows correct error variant for simulated failures
+
+---
+
 ## Session 2026-02-05: Progress Tracking System (Story 3.1) ✅
 
 ### Objective
@@ -1476,4 +1505,4 @@ Added ability to select multiple notes for AI quizzing, providing broader contex
 
 ---
 
-**Last Updated**: 2026-02-04 by GitHub Copilot CLI
+**Last Updated**: 2026-02-06 by GitHub Copilot CLI

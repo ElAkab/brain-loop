@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Markdown } from "@/components/ui/markdown";
-import { TokenWarning } from "@/components/TokenWarning";
+import { TokenWarning, type TokenWarningProps } from "@/components/TokenWarning";
 import { Button } from "@/components/ui/button";
+import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
 
 interface Message {
 	role: "user" | "assistant";
@@ -21,7 +22,10 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	const [loading, setLoading] = useState(false);
 	const [hasStarted, setHasStarted] = useState(false);
 	const [startTime] = useState(Date.now());
-	const [quotaExhausted, setQuotaExhausted] = useState(false);
+	const [errorState, setErrorState] = useState<{
+		type: TokenWarningProps["errorType"];
+		message?: string;
+	} | null>(null);
 
 	// Auto-start quiz when component mounts
 	useEffect(() => {
@@ -30,9 +34,82 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		}
 	}, []);
 
+	const mapErrorCode = (
+		code?: string | number,
+	): TokenWarningProps["errorType"] => {
+		const normalized = (code ?? "").toString().toLowerCase();
+
+		if (
+			normalized.includes("quota") ||
+			normalized.includes("insufficient")
+		) {
+			return "quota_exhausted";
+		}
+
+		if (normalized.includes("rate")) return "rate_limit";
+
+		if (
+			normalized.includes("all_models_failed") ||
+			normalized.includes("no_models")
+		) {
+			return "no_models_available";
+		}
+
+		return "generic";
+	};
+
+	const processStream = async (
+		response: Response,
+		updatedMessages: Message[],
+	) => {
+		let aiResponse = "";
+		let metadata: StreamMetadata = {
+			analysis: "",
+			weaknesses: "",
+			conclusion: "",
+		};
+
+		try {
+			await readSSEStream(response, {
+				onDelta: (content) => {
+					aiResponse += content;
+					setMessages([
+						...updatedMessages,
+						{ role: "assistant", content: aiResponse },
+					]);
+				},
+				onMetadata: (data) => {
+					metadata = data;
+				},
+				onDone: () => {
+					if (!aiResponse.trim()) {
+						setErrorState({
+							type: "generic",
+							message: "Empty response received from the AI model.",
+						});
+						return;
+					}
+
+					(window as any).__lastAIFeedback = metadata;
+					setMessages([
+						...updatedMessages,
+						{ role: "assistant", content: aiResponse },
+					]);
+				},
+			});
+		} catch (error) {
+			console.error("Failed to process stream:", error);
+			setErrorState({
+				type: "generic",
+				message: "Streaming failed. Please try again.",
+			});
+		}
+	};
+
 	const startQuiz = async () => {
 		setHasStarted(true);
 		setLoading(true);
+		setErrorState(null);
 
 		try {
 			const res = await fetch("/api/ai/quiz-multi", {
@@ -56,75 +133,21 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 					status: res.status,
 				});
 
-				// Check if quota exhausted
-				if (errorBody?.code === "QUOTA_EXHAUSTED") {
-					setQuotaExhausted(true);
-					setLoading(false); // CRITICAL: stop loading state
-					return;
-				}
-				
-				// For other errors (rate limits, all models failed), show generic error
-				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
-					setLoading(false);
-					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
-					return;
-				}
-
 				setLoading(false);
-				alert(`Error: Failed to start quiz`);
+				setErrorState({
+					type: mapErrorCode(errorBody?.code),
+					message: errorBody?.error || errorBody?.message || res.statusText,
+				});
 				return;
 			}
 
-			// Handle streaming response with metadata separation
-			const reader = res.body?.getReader();
-			const decoder = new TextDecoder();
-			let aiResponse = "";
-			let metadata = { analysis: "", weaknesses: "", conclusion: "" };
-
-			if (reader) {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-
-					const chunk = decoder.decode(value, { stream: true });
-					const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-					for (const line of lines) {
-						if (line.startsWith("data: ")) {
-							const data = line.slice(6);
-							if (data === "[DONE]") continue;
-
-							try {
-								const parsed = JSON.parse(data);
-
-								// Check for metadata chunk
-								if (parsed.type === "metadata") {
-									metadata = parsed.data;
-									continue;
-								}
-
-								// Accumulate chat_response content
-								const content = parsed.choices?.[0]?.delta?.content;
-								if (content) {
-									aiResponse += content;
-									// Update streaming display
-									setMessages([{ role: "assistant", content: aiResponse }]);
-								}
-							} catch (e) {
-								// Ignore parse errors for incomplete chunks
-							}
-						}
-					}
-				}
-			}
-
-			// Store final metadata
-			(window as any).__lastAIFeedback = metadata;
-
-			setMessages([{ role: "assistant", content: aiResponse }]);
+			await processStream(res, []);
 		} catch (error) {
 			console.error("Failed to start quiz:", error);
-			alert("Failed to start quiz");
+			setErrorState({
+				type: "generic",
+				message: "Failed to start quiz.",
+			});
 		} finally {
 			setLoading(false);
 		}
@@ -138,6 +161,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		setMessages(updatedMessages);
 		setInput("");
 		setLoading(true);
+		setErrorState(null);
 
 		try {
 			const res = await fetch("/api/ai/quiz-multi", {
@@ -167,86 +191,29 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 					status: res.status,
 				});
 
-				// Check if quota exhausted
-				if (errorBody?.code === "QUOTA_EXHAUSTED") {
-					setQuotaExhausted(true);
-					setLoading(false); // CRITICAL: stop loading state
-					return;
-				}
-				
-				// For other errors (rate limits, all models failed), show generic error
-				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
-					setLoading(false);
-					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
-					return;
-				}
-
 				setLoading(false);
-				alert("Error: Failed to send message");
+				setErrorState({
+					type: mapErrorCode(errorBody?.code),
+					message: errorBody?.error || errorBody?.message || res.statusText,
+				});
 				return;
 			}
 
-			// Handle streaming response with metadata separation
-			const reader = res.body?.getReader();
-			const decoder = new TextDecoder();
-			let aiResponse = "";
-			let metadata = { analysis: "", weaknesses: "", conclusion: "" };
-
-			if (reader) {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-
-					const chunk = decoder.decode(value, { stream: true });
-					const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-					for (const line of lines) {
-						if (line.startsWith("data: ")) {
-							const data = line.slice(6);
-							if (data === "[DONE]") continue;
-
-							try {
-								const parsed = JSON.parse(data);
-
-								// Check for metadata chunk
-								if (parsed.type === "metadata") {
-									metadata = parsed.data;
-									continue;
-								}
-
-								// Accumulate chat_response content
-								const content = parsed.choices?.[0]?.delta?.content;
-								if (content) {
-									aiResponse += content;
-									// Update streaming display
-									setMessages([
-										...updatedMessages,
-										{ role: "assistant", content: aiResponse },
-									]);
-								}
-							} catch (e) {
-								// Ignore parse errors
-							}
-						}
-					}
-				}
-			}
-
-			// Store final metadata
-			(window as any).__lastAIFeedback = metadata;
-
-			// Final update
-			setMessages([
-				...updatedMessages,
-				{ role: "assistant", content: aiResponse },
-			]);
+			await processStream(res, updatedMessages);
 		} catch (error) {
 			console.error("Failed to send message:", error);
-			alert("Failed to send message");
+			setErrorState({
+				type: "generic",
+				message: "Failed to send message.",
+			});
 		} finally {
 			setLoading(false);
 		}
 	};
+
+	const isBlockingError =
+		errorState?.type === "quota_exhausted" ||
+		errorState?.type === "no_models_available";
 
 	if (!hasStarted) {
 		return (
@@ -280,9 +247,12 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	return (
 		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 			<div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-				{quotaExhausted ? (
+				{isBlockingError ? (
 					<div className="space-y-4">
-						<TokenWarning />
+						<TokenWarning
+							errorType={errorState?.type}
+							customMessage={errorState?.message}
+						/>
 						<div className="flex justify-end gap-2">
 							<Button
 								variant="secondary"
@@ -292,7 +262,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 							</Button>
 							<Button
 								onClick={() => {
-									setQuotaExhausted(false);
+									setErrorState(null);
 									// close modal
 									onClose();
 								}}
@@ -384,21 +354,35 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 							)}
 
 							{/* If not loading and no meaningful assistant response, show TokenWarning */}
-							{!loading &&
-								!quotaExhausted &&
-								(messages.length === 0 ||
-									(messages.length > 0 &&
-										messages[messages.length - 1].role === "assistant" &&
-										messages[messages.length - 1].content.trim() === "")) && (
-									<TokenWarning
-										errorType="quota_exhausted"
-										variant="inline"
-										onRetryLater={() => {
-											setQuotaExhausted(false);
-											startQuiz();
-										}}
-									/>
-								)}
+							{(() => {
+								const lastMessage = messages[messages.length - 1];
+								const noAssistantResponse =
+									messages.length === 0 ||
+									(lastMessage?.role === "assistant" &&
+										lastMessage.content.trim() === "") ||
+									lastMessage?.role === "user";
+
+								if (
+									!loading &&
+									!isBlockingError &&
+									errorState &&
+									noAssistantResponse
+								) {
+									return (
+										<TokenWarning
+											errorType={errorState.type}
+											variant="inline"
+											customMessage={errorState.message}
+											onRetryLater={() => {
+												setErrorState(null);
+												startQuiz();
+											}}
+										/>
+									);
+								}
+
+								return null;
+							})()}
 						</div>
 
 						{/* Input */}

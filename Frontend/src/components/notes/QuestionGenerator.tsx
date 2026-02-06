@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/ui/markdown";
-import { TokenWarning } from "@/components/TokenWarning";
+import { TokenWarning, type TokenWarningProps } from "@/components/TokenWarning";
+import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
 
 interface Message {
 	role: "user" | "assistant";
@@ -50,11 +51,38 @@ export function QuestionGenerator({
 	const [currentModel, setCurrentModel] = useState<string>("unknown");
 	const [categoryId, setCategoryId] = useState<string | undefined>();
 	const [sessionStartTime, setSessionStartTime] = useState<number>(0);
-	const [quotaExhausted, setQuotaExhausted] = useState(false);
+	const [errorState, setErrorState] = useState<{
+		type: TokenWarningProps["errorType"];
+		message?: string;
+	} | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	const mapErrorCode = (
+		code?: string | number,
+	): TokenWarningProps["errorType"] => {
+		const normalized = (code ?? "").toString().toLowerCase();
+
+		if (
+			normalized.includes("quota") ||
+			normalized.includes("insufficient")
+		) {
+			return "quota_exhausted";
+		}
+
+		if (normalized.includes("rate")) return "rate_limit";
+
+		if (
+			normalized.includes("all_models_failed") ||
+			normalized.includes("no_models")
+		) {
+			return "no_models_available";
+		}
+
+		return "generic";
 	};
 
 	useEffect(() => {
@@ -141,75 +169,50 @@ export function QuestionGenerator({
 		response: Response,
 		updatedMessages?: Message[],
 	) => {
-		const reader = response.body?.getReader();
-		const decoder = new TextDecoder();
-
-		if (!reader) {
-			throw new Error("No reader available");
-		}
-
 		let accumulatedContent = "";
-		let metadata = { analysis: "", weaknesses: "", conclusion: "" };
+		let metadata: StreamMetadata = {
+			analysis: "",
+			weaknesses: "",
+			conclusion: "",
+		};
 
 		try {
-			console.debug("QuestionGenerator: processStream started");
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				console.debug(
-					"QuestionGenerator: received chunk",
-					value && value.byteLength,
-				);
-				const chunk = decoder.decode(value);
-				const lines = chunk.split("\n");
-
-				for (const line of lines) {
-					if (line.startsWith("data: ")) {
-						const data = line.slice(6);
-
-						if (data === "[DONE]") {
-							// Save final message with accumulated content
-							const assistantMessage: Message = {
-								role: "assistant",
-								content: accumulatedContent,
-							};
-							setMessages((prev) => [
-								...(updatedMessages || prev),
-								assistantMessage,
-							]);
-							setStreamingContent("");
-
-							// Store metadata for session saving
-							(window as any).__lastAIFeedback = metadata;
-							return;
-						}
-
-						try {
-							const parsed = JSON.parse(data);
-
-							// Check for metadata chunk
-							if (parsed.type === "metadata") {
-								metadata = parsed.data;
-								continue;
-							}
-
-							// Stream chat_response content
-							const content = parsed.choices?.[0]?.delta?.content;
-							if (content) {
-								accumulatedContent += content;
-								setStreamingContent(accumulatedContent);
-							}
-						} catch (e) {
-							// ignore incomplete JSON
-						}
+			await readSSEStream(response, {
+				onDelta: (content) => {
+					accumulatedContent += content;
+					setStreamingContent(accumulatedContent);
+				},
+				onMetadata: (data) => {
+					metadata = data;
+				},
+				onDone: () => {
+					if (!accumulatedContent.trim()) {
+						setStreamingContent("");
+						setErrorState({
+							type: "generic",
+							message: "Empty response received from the AI model.",
+						});
+						return;
 					}
-				}
-			}
+
+					const assistantMessage: Message = {
+						role: "assistant",
+						content: accumulatedContent,
+					};
+					setMessages((prev) => [
+						...(updatedMessages || prev),
+						assistantMessage,
+					]);
+					setStreamingContent("");
+					(window as any).__lastAIFeedback = metadata;
+				},
+			});
 		} catch (error) {
 			console.error("Stream processing error:", error);
-			throw error;
-		} finally {
-			reader.releaseLock();
+			setErrorState({
+				type: "generic",
+				message: "Streaming failed. Please try again.",
+			});
 		}
 	};
 
@@ -222,6 +225,7 @@ export function QuestionGenerator({
 		setMessages([]);
 		setLoading(true);
 		setStreamingContent("");
+		setErrorState(null);
 
 		try {
 			// Fetch note data to get categoryId and previous session
@@ -263,6 +267,17 @@ export function QuestionGenerator({
 			});
 
 			console.debug("QuestionGenerator: fetch complete", res.status);
+
+			// Debugging: log headers and body availability
+			try {
+				console.debug(
+					"QuestionGenerator: response content-type",
+					res.headers.get("content-type"),
+				);
+				console.debug("QuestionGenerator: response has body", !!res.body);
+			} catch (e) {
+				console.debug("QuestionGenerator: failed to read response metadata", e);
+			}
 			if (!res.ok) {
 				let errorBody: any = null;
 				try {
@@ -275,15 +290,11 @@ export function QuestionGenerator({
 					status: res.status,
 				});
 
-				// Check for quota exhausted
-				if (errorBody?.code === "QUOTA_EXHAUSTED") {
-					setQuotaExhausted(true);
-					setLoading(false); // CRITICAL: stop loading state
-					return;
-				}
-
 				setLoading(false);
-				alert(`Error: ${errorBody?.error || res.statusText}`);
+				setErrorState({
+					type: mapErrorCode(errorBody?.code),
+					message: errorBody?.error || errorBody?.message || res.statusText,
+				});
 				return;
 			}
 
@@ -296,7 +307,10 @@ export function QuestionGenerator({
 			await processStream(res);
 		} catch (error) {
 			console.error("Failed to start conversation:", error);
-			alert("Failed to start conversation");
+			setErrorState({
+				type: "generic",
+				message: "Failed to start conversation.",
+			});
 		} finally {
 			setLoading(false);
 		}
@@ -311,6 +325,7 @@ export function QuestionGenerator({
 		setInput("");
 		setLoading(true);
 		setStreamingContent("");
+		setErrorState(null);
 
 		try {
 			const endpoint =
@@ -342,33 +357,29 @@ export function QuestionGenerator({
 					status: res.status,
 				});
 
-				// Check if quota exhausted
-				if (errorBody?.code === "QUOTA_EXHAUSTED") {
-					setQuotaExhausted(true);
-					setLoading(false); // CRITICAL: stop loading state
-					return;
-				}
-				
-				// For other errors (rate limits, all models failed), show generic error
-				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
-					setLoading(false);
-					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
-					return;
-				}
-
 				setLoading(false);
-				alert(`Error: ${errorBody?.error || res.statusText}`);
+				setErrorState({
+					type: mapErrorCode(errorBody?.code),
+					message: errorBody?.error || errorBody?.message || res.statusText,
+				});
 				return;
 			}
 
 			await processStream(res, updatedMessages);
 		} catch (error) {
 			console.error("Failed to send message:", error);
-			alert("Failed to send message");
+			setErrorState({
+				type: "generic",
+				message: "Failed to send message.",
+			});
 		} finally {
 			setLoading(false);
 		}
 	};
+
+	const isBlockingError =
+		errorState?.type === "quota_exhausted" ||
+		errorState?.type === "no_models_available";
 
 	return (
 		<>
@@ -407,9 +418,12 @@ export function QuestionGenerator({
 						<DialogTitle>AI Study Session</DialogTitle>
 					</DialogHeader>
 
-					{quotaExhausted ? (
+					{isBlockingError ? (
 						<div className="space-y-4">
-							<TokenWarning />
+							<TokenWarning
+								errorType={errorState?.type}
+								customMessage={errorState?.message}
+							/>
 							<div className="flex justify-end gap-2">
 								<Button
 									variant="secondary"
@@ -419,7 +433,7 @@ export function QuestionGenerator({
 								</Button>
 								<Button
 									onClick={() => {
-										setQuotaExhausted(false);
+										setErrorState(null);
 										startConversation();
 									}}
 								>
@@ -470,23 +484,28 @@ export function QuestionGenerator({
 
 								{/* Show TokenWarning when not loading and there is no response (empty or interrupted) */}
 								{(() => {
-									const lastAssistantEmpty =
-										messages.length > 0 &&
-										messages[messages.length - 1].role === "assistant" &&
-										messages[messages.length - 1].content.trim() === "";
+									const lastMessage = messages[messages.length - 1];
+									const noAssistantResponse =
+										messages.length === 0 ||
+										(lastMessage?.role === "assistant" &&
+											lastMessage.content.trim() === "") ||
+										lastMessage?.role === "user";
 
 									if (
 										!loading &&
-										!quotaExhausted &&
+										!isBlockingError &&
+										errorState &&
 										!streamingContent &&
-										(messages.length === 0 || lastAssistantEmpty)
+										noAssistantResponse
 									) {
 										return (
 											<TokenWarning
-												errorType="quota_exhausted"
+												errorType={errorState.type}
 												variant="inline"
+												customMessage={errorState.message}
 												onRetryLater={() => {
 													// Try restarting the conversation when the user retries
+													setErrorState(null);
 													startConversation();
 												}}
 											/>
