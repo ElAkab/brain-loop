@@ -269,6 +269,12 @@ export function QuestionGenerator({
 					errorBody = await res.json();
 				} catch (e) {}
 
+				console.error("AI backend error:", {
+					code: errorBody?.code || null,
+					message: errorBody?.error || errorBody?.message || res.statusText,
+					status: res.status,
+				});
+
 				// Check for quota exhausted
 				if (errorBody?.code === "QUOTA_EXHAUSTED") {
 					setQuotaExhausted(true);
@@ -330,10 +336,23 @@ export function QuestionGenerator({
 					errorBody = await res.json();
 				} catch (e) {}
 
+				console.error("AI backend error:", {
+					code: errorBody?.code || null,
+					message: errorBody?.error || errorBody?.message || res.statusText,
+					status: res.status,
+				});
+
 				// Check if quota exhausted
 				if (errorBody?.code === "QUOTA_EXHAUSTED") {
 					setQuotaExhausted(true);
 					setLoading(false); // CRITICAL: stop loading state
+					return;
+				}
+				
+				// For other errors (rate limits, all models failed), show generic error
+				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
+					setLoading(false);
+					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
 					return;
 				}
 

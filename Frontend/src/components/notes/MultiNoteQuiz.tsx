@@ -50,10 +50,23 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 					console.error("Quiz start error:", e);
 				}
 
+				console.error("AI backend error:", {
+					code: errorBody?.code || null,
+					message: errorBody?.error || errorBody?.message || res.statusText,
+					status: res.status,
+				});
+
 				// Check if quota exhausted
 				if (errorBody?.code === "QUOTA_EXHAUSTED") {
 					setQuotaExhausted(true);
 					setLoading(false); // CRITICAL: stop loading state
+					return;
+				}
+				
+				// For other errors (rate limits, all models failed), show generic error
+				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
+					setLoading(false);
+					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
 					return;
 				}
 
@@ -148,10 +161,23 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 					console.error("Send message error:", e);
 				}
 
+				console.error("AI backend error:", {
+					code: errorBody?.code || null,
+					message: errorBody?.error || errorBody?.message || res.statusText,
+					status: res.status,
+				});
+
 				// Check if quota exhausted
 				if (errorBody?.code === "QUOTA_EXHAUSTED") {
 					setQuotaExhausted(true);
 					setLoading(false); // CRITICAL: stop loading state
+					return;
+				}
+				
+				// For other errors (rate limits, all models failed), show generic error
+				if (errorBody?.code === "RATE_LIMIT_EXCEEDED" || errorBody?.code === "ALL_MODELS_FAILED") {
+					setLoading(false);
+					alert(`Temporary error: ${errorBody?.error || "All models are temporarily unavailable. Please try again in a moment."}`);
 					return;
 				}
 
@@ -358,16 +384,21 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 							)}
 
 							{/* If not loading and no meaningful assistant response, show TokenWarning */}
-							{!loading && !quotaExhausted && (messages.length === 0 || (messages.length > 0 && messages[messages.length - 1].role === "assistant" && messages[messages.length - 1].content.trim() === "")) && (
-								<TokenWarning
-									errorType="quota_exhausted"
-									variant="inline"
-									onRetryLater={() => {
-										setQuotaExhausted(false);
-										startQuiz();
-									}}
-								/>
-							)}
+							{!loading &&
+								!quotaExhausted &&
+								(messages.length === 0 ||
+									(messages.length > 0 &&
+										messages[messages.length - 1].role === "assistant" &&
+										messages[messages.length - 1].content.trim() === "")) && (
+									<TokenWarning
+										errorType="quota_exhausted"
+										variant="inline"
+										onRetryLater={() => {
+											setQuotaExhausted(false);
+											startQuiz();
+										}}
+									/>
+								)}
 						</div>
 
 						{/* Input */}

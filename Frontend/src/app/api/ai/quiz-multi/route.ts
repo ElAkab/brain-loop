@@ -18,6 +18,42 @@ const FREE_MODELS = [
 	// "openrouter/free  (auto-router)", <-- retirer ou corriger
 ];
 
+const PREMIUM_MODELS = [
+	"openai/gpt-4o-mini:paid",
+	"google/gemini-1-pro:paid",
+	...FREE_MODELS,
+];
+
+function classifyOpenRouterError(errorData: any) {
+	if (!errorData) return null;
+	const err = errorData.error || errorData;
+	const message = (err?.message || err?.code || "").toString().toLowerCase();
+
+	if (message.includes("context") && message.includes("length"))
+		return "context_length_exceeded";
+	if (message.includes("quota") || message.includes("insufficient"))
+		return "insufficient_quota";
+	if (
+		message.includes("rate") ||
+		message.includes("limit") ||
+		message.includes("429")
+	)
+		return "rate_limit_exceeded";
+	if (message.includes("model") && message.includes("invalid"))
+		return "invalid_model";
+
+	if (
+		err?.code === "CONTEXT_LENGTH_EXCEEDED" ||
+		err?.type === "context_length_exceeded"
+	)
+		return "context_length_exceeded";
+	if (err?.code === "INSUFFICIENT_QUOTA" || err?.type === "insufficient_quota")
+		return "insufficient_quota";
+	if (err?.code === 429 || err?.status === 429) return "rate_limit_exceeded";
+
+	return null;
+}
+
 let currentModelIndex = 0;
 
 const OPENROUTER_KEY =
@@ -212,8 +248,34 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			);
 		}
 
+		// Determine subscription tier from `profiles` table (preferred) or fallback to user metadata
+		let subscriptionTier = "FREE";
+		try {
+			const { data: profile } = await supabase
+				.from("profiles")
+				.select("subscription_tier")
+				.eq("id", user.id)
+				.maybeSingle();
+			if (profile?.subscription_tier)
+				subscriptionTier = profile.subscription_tier;
+		} catch (e) {
+			console.warn(
+				"Failed to read profile subscription_tier, falling back to user metadata",
+				e,
+			);
+			if (
+				user?.user_metadata?.is_premium ||
+				user?.app_metadata?.plan === "premium"
+			) {
+				subscriptionTier = "PRO";
+			}
+		}
+
+		const isPremium = subscriptionTier === "PRO";
+		const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS;
+
 		let lastError: any = null;
-		for (const model of FREE_MODELS) {
+		for (const model of modelsToTry) {
 			try {
 				const response = await fetch(
 					`${OPENROUTER_BASE_URL}/chat/completions`,
@@ -238,21 +300,51 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 
 				if (!response.ok) {
 					const errData = await response.json().catch(() => null);
-					// rate limit -> try next model
-					if (
-						response.status === 429 ||
-						(errData && errData.error?.code === 429)
-					) {
-						console.log(
-							`Model ${model} rate limited, switching to next model...`,
-						);
-						lastError = errData || { status: response.status };
+					const classified = classifyOpenRouterError(errData);
+					console.warn(
+						`Model ${model} failed (${classified || "unknown"}):`,
+						errData,
+					);
+					lastError = errData || { status: response.status };
+
+					if (classified === "invalid_model") {
+						// try next model
 						continue;
 					}
 
-					throw new Error(
-						JSON.stringify(errData || { status: response.status }),
-					);
+					if (classified === "context_length_exceeded") {
+						console.error("Context length exceeded for model:", model);
+						return NextResponse.json(
+							{
+								error: "Context length exceeded for this model",
+								code: "context_length_exceeded",
+								recommendedAction: "reduce_prompt_or_upgrade",
+							},
+							{ status: 400 },
+						);
+					}
+
+					if (classified === "insufficient_quota") {
+						console.error("Insufficient quota (OpenRouter) for model:", model);
+						return NextResponse.json(
+							{
+								error: "Insufficient quota on OpenRouter",
+								code: "insufficient_quota",
+							},
+							{ status: 503 },
+						);
+					}
+
+					if (classified === "rate_limit_exceeded") {
+						console.warn("Rate limit reached for model:", model);
+						return NextResponse.json(
+							{ error: "Rate limit reached", code: "rate_limit_exceeded" },
+							{ status: 429 },
+						);
+					}
+
+					// Unknown error: continue to next model
+					continue;
 				}
 
 				// Parse stream and extract chat_response for streaming
@@ -318,11 +410,13 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 														const jsonObj = JSON.parse(jsonMatch[0]);
 														if (jsonObj.chat_response) {
 															// Stream only NEW characters from chat_response
-															const currentLength = jsonObj.chat_response.length;
+															const currentLength =
+																jsonObj.chat_response.length;
 															if (currentLength > lastSentLength) {
-																const newContent = jsonObj.chat_response.substring(
-																	lastSentLength,
-																);
+																const newContent =
+																	jsonObj.chat_response.substring(
+																		lastSentLength,
+																	);
 																lastSentLength = currentLength;
 
 																const streamChunk = `data: ${JSON.stringify({
@@ -366,11 +460,19 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 		}
 
 		console.error("All models failed. Last error:", lastError);
+		
+		// Determine appropriate error code based on last error
+		const errorCode = lastError?.error?.code === 429 || 
+		                  (typeof lastError === 'object' && lastError?.message?.includes('rate'))
+			? "RATE_LIMIT_EXCEEDED"
+			: "ALL_MODELS_FAILED";
+		
 		return NextResponse.json(
 			{
 				error:
 					"All AI models are currently unavailable. Please try again later.",
-				code: "QUOTA_EXHAUSTED",
+				code: errorCode,
+				details: lastError,
 			},
 			{ status: 503 },
 		);
