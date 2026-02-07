@@ -9,6 +9,10 @@ export const metadata: Metadata = {
 	title: "Echoflow - AI-Powered Learning",
 	description:
 		"Master your knowledge with AI-generated quizzes from your notes",
+	icons: {
+		icon: "/images/echoflow_favicon.png",
+		apple: "/images/echoflow_favicon.png",
+	},
 };
 
 // Root layout component that wraps all pages in the application.

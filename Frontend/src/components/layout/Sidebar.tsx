@@ -23,9 +23,20 @@ export function Sidebar() {
 
 	return (
 		<aside className="hidden md:flex w-64 flex-col border-r bg-background">
-			<div className="p-6">
-				<h1 className="text-2xl font-bold text-primary">Echoflow</h1>
-				<p className="text-sm text-muted-foreground">Active Recall Learning</p>
+			<div className="p-6 flex items-center gap-3">
+				<img
+					src="/images/echoflow_logo.png"
+					alt="Echoflow"
+					className="h-10 w-10"
+				/>
+				<div>
+					<h1 className="text-2xl font-bold text-primary cursor-pointer">
+						Echoflow
+					</h1>
+					<p className="text-sm text-muted-foreground">
+						Active Recall Learning
+					</p>
+				</div>
 			</div>
 
 			<Separator />

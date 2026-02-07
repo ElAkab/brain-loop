@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/ui/markdown";
-import { TokenWarning, type TokenWarningProps } from "@/components/TokenWarning";
+import {
+	TokenWarning,
+	type TokenWarningProps,
+} from "@/components/TokenWarning";
 import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
 
 interface Message {
@@ -66,10 +69,7 @@ export function QuestionGenerator({
 	): TokenWarningProps["errorType"] => {
 		const normalized = (code ?? "").toString().toLowerCase();
 
-		if (
-			normalized.includes("quota") ||
-			normalized.includes("insufficient")
-		) {
+		if (normalized.includes("quota") || normalized.includes("insufficient")) {
 			return "quota_exhausted";
 		}
 
@@ -534,12 +534,17 @@ export function QuestionGenerator({
 									disabled={loading}
 								/>
 								<div className="flex justify-end gap-2">
-									<Button variant="outline" onClick={() => setOpen(false)}>
+									<Button
+										variant="outline"
+										onClick={() => setOpen(false)}
+										className="cursor-pointer"
+									>
 										Close
 									</Button>
 									<Button
 										onClick={sendMessage}
 										disabled={loading || !input.trim()}
+										className="cursor-pointer"
 									>
 										Send
 									</Button>
