@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 	description:
 		"Master your knowledge with AI-generated quizzes from your notes",
 	icons: {
-		icon: "/images/echoflow_favicon.png",
-		apple: "/images/echoflow_favicon.png",
+		icon: "/images/echoflow_logo.ico",
+		apple: "/images/echoflow_logo.ico",
 	},
 };
 
