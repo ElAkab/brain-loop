@@ -4,18 +4,18 @@
 
 ### Goals
 
-- Faciliter la mémorisation et la compréhension de sujets complexes grâce à l'interrogation ciblée (Active Recall).
-- Offrir une solution d'apprentissage assistée par IA abordable, avec une gestion transparente des coûts et quotas.
-- Fournir une interface intuitive pour la gestion des connaissances personnelles (PKM) et l'auto-évaluation sans friction.
-- Permettre une flexibilité totale dans le choix des modèles d'IA via l'intégration OpenRouter.
+- Facilitate the memorization and understanding of complex subjects through targeted questioning (Active Recall).
+- Offer an affordable AI-assisted learning solution with transparent cost and quota management.
+- Provide an intuitive interface for personal knowledge management (PKM) and frictionless self-assessment.
+- Enable complete flexibility in the choice of AI models via OpenRouter integration.
 
 ### Background Context
 
-Echoflow est une application SaaS conçue pour les autodidactes, étudiants et professionnels en formation continue qui souhaitent optimiser leur processus d'apprentissage. Contrairement aux outils classiques de flashcards ou de quiz statiques, Echoflow utilise l'IA générative pour interroger l'utilisateur directement sur le contenu de ses propres notes (texte libre), simulant ainsi un tuteur personnel.
+Echoflow is a SaaS application designed for self-learners, students, and professionals in continuing education who want to optimize their learning process. Unlike traditional flashcard or static quiz tools, Echoflow uses generative AI to directly quiz users on the content of their own notes (free text), thus simulating a personal tutor.
 
-Le projet répond à un besoin d'efficacité pédagogique tout en adressant la contrainte économique des LLM. En s'appuyant sur une architecture technique optimisée (ex: Next.js, Supabase) et l'agrégateur OpenRouter, Echoflow vise à offrir un modèle freemium viable où l'utilisateur reste maître de sa consommation. **Les choix techniques mentionnés sont indicatifs et pourront être ajustés lors de la phase d’architecture.**
+The project addresses the need for pedagogical efficiency while also addressing the economic constraints of LLMs. Leveraging an optimized technical architecture (e.g., Next.js, Supabase) and the OpenRouter aggregator, Echoflow aims to offer a viable freemium model where users retain control over their consumption. **The technical choices mentioned are indicative and may be adjusted during the architecture phase.**
 
-L'expérience utilisateur est centrée sur la fluidité : de la prise de note rapide à l'interrogation intelligente, avec des fonctionnalités innovantes comme la génération dynamique de liens de recherche pour approfondir les concepts.
+The user experience is centered on fluidity: from quick note-taking to intelligent querying, with innovative features such as dynamic search link generation for in-depth exploration of concepts.
 
 ### Change Log
 
