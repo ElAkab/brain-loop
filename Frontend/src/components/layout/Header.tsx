@@ -50,10 +50,10 @@ export function Header() {
 				<div className="hidden md:flex md:flex-1" />
 
 				{/* Quota Badge */}
-				<Badge variant="secondary" className="gap-2">
+				{/* <Badge variant="secondary" className="gap-2">
 					<span className="text-xs font-mono">3/3</span>
 					<span className="text-xs">hints remaining</span>
-				</Badge>
+				</Badge> */}
 			</div>
 		</header>
 	);

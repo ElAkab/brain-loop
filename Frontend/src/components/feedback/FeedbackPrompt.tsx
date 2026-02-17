@@ -72,7 +72,7 @@ export function FeedbackPrompt() {
 										{/* Placeholder for your avatar */}
 										<div className="h-10 w-10 rounded-full bg-primary/10 overflow-hidden border border-border flex items-center justify-center">
 											<img
-												src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
+												src="/images/akab-logo.png"
 												alt="Adam's Avatar"
 												className="h-full w-full object-cover"
 											/>
@@ -89,11 +89,11 @@ export function FeedbackPrompt() {
 									</div>
 								</div>
 
-								<div className="flex justify-between gap-2 pl-[3.25rem] pr-4">
+								<div className="flex justify-between gap-2 px-[3]">
 									<Button
 										variant={rating === "helpful" ? "default" : "outline"}
 										size="sm"
-										className="flex-1 text-xs gap-1.5"
+										className="flex-1 text-xs gap-1.5 cursor-pointer dark:hover:text-primary"
 										onClick={() => setRating("helpful")}
 									>
 										<ThumbsUp className="h-3 w-3" />
@@ -102,7 +102,7 @@ export function FeedbackPrompt() {
 									<Button
 										variant={rating === "neutral" ? "default" : "outline"}
 										size="sm"
-										className="flex-1 text-xs gap-1.5"
+										className="flex-1 text-xs gap-1.5 cursor-pointer dark:hover:text-primary"
 										onClick={() => setRating("neutral")}
 									>
 										<Minus className="h-3 w-3" />
@@ -111,7 +111,7 @@ export function FeedbackPrompt() {
 									<Button
 										variant={rating === "not_helpful" ? "default" : "outline"}
 										size="sm"
-										className="flex-1 text-xs gap-1.5"
+										className="flex-1 text-xs gap-1.5 cursor-pointer dark:hover:text-primary"
 										onClick={() => setRating("not_helpful")}
 									>
 										<ThumbsDown className="h-3 w-3" />
@@ -127,14 +127,14 @@ export function FeedbackPrompt() {
 											className="space-y-3"
 										>
 											<Textarea
-												placeholder="Any additional thoughts? (Optional)"
+												placeholder="Any other issues or feedback? (Optional)"
 												className="text-xs resize-none min-h-[60px]"
 												value={comment}
 												onChange={(e) => setComment(e.target.value)}
 											/>
 											<Button
 												size="sm"
-												className="w-full"
+												className="w-full cursor-pointer"
 												onClick={handleSubmit}
 											>
 												Submit Feedback
