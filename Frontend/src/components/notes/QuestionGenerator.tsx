@@ -16,6 +16,7 @@ import {
 	type TokenWarningProps,
 } from "@/components/TokenWarning";
 import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
+import { useFeedbackStore } from "@/lib/store/feedback-store";
 
 interface Message {
 	role: "user" | "assistant";
@@ -52,6 +53,7 @@ export function QuestionGenerator({
 	const [loading, setLoading] = useState(false);
 	const [streamingContent, setStreamingContent] = useState("");
 	const [currentModel, setCurrentModel] = useState<string>("unknown");
+	const [currentKeySource, setCurrentKeySource] = useState<string>("unknown");
 	const [categoryId, setCategoryId] = useState<string | undefined>();
 	const [sessionStartTime, setSessionStartTime] = useState<number>(0);
 	const [errorState, setErrorState] = useState<{
@@ -68,6 +70,14 @@ export function QuestionGenerator({
 		code?: string | number,
 	): TokenWarningProps["errorType"] => {
 		const normalized = (code ?? "").toString().toLowerCase();
+
+		if (normalized.includes("platform_budget_exhausted")) {
+			return "platform_budget_exhausted";
+		}
+
+		if (normalized.includes("byok_or_upgrade_required")) {
+			return "byok_or_upgrade_required";
+		}
 
 		if (normalized.includes("quota") || normalized.includes("insufficient")) {
 			return "quota_exhausted";
@@ -133,10 +143,10 @@ export function QuestionGenerator({
 						body: JSON.stringify({
 							noteIds: noteIdsToSave,
 							categoryId,
-							sessionType:
-								noteIds && noteIds.length > 1 ? "MULTI_NOTE" : "SINGLE_NOTE",
-							modelUsed: currentModel,
-							conversationHistory: messages,
+								sessionType:
+									noteIds && noteIds.length > 1 ? "MULTI_NOTE" : "SINGLE_NOTE",
+								modelUsed: `${currentKeySource}:${currentModel}`,
+								conversationHistory: messages,
 							aiFeedback,
 							questionsAsked: messages.filter((m) => m.role === "assistant")
 								.length,
@@ -157,12 +167,18 @@ export function QuestionGenerator({
 		noteIds,
 		categoryId,
 		currentModel,
+		currentKeySource,
 		sessionStartTime,
 	]);
 
 	const setOpen = (val: boolean) => {
 		if (onOpenChange) onOpenChange(val);
 		if (open === undefined) setIsOpen(val);
+		
+		// Trigger feedback on close
+		if (!val) {
+			useFeedbackStore.getState().triggerFeedback();
+		}
 	};
 
 	const processStream = async (
@@ -303,6 +319,10 @@ export function QuestionGenerator({
 			if (modelUsed) {
 				setCurrentModel(modelUsed);
 			}
+			const keySource = res.headers.get("X-Key-Source");
+			if (keySource) {
+				setCurrentKeySource(keySource);
+			}
 
 			await processStream(res);
 		} catch (error) {
@@ -365,6 +385,15 @@ export function QuestionGenerator({
 				return;
 			}
 
+			const modelUsed = res.headers.get("X-Model-Used");
+			if (modelUsed) {
+				setCurrentModel(modelUsed);
+			}
+			const keySource = res.headers.get("X-Key-Source");
+			if (keySource) {
+				setCurrentKeySource(keySource);
+			}
+
 			await processStream(res, updatedMessages);
 		} catch (error) {
 			console.error("Failed to send message:", error);
@@ -379,6 +408,8 @@ export function QuestionGenerator({
 
 	const isBlockingError =
 		errorState?.type === "quota_exhausted" ||
+		errorState?.type === "platform_budget_exhausted" ||
+		errorState?.type === "byok_or_upgrade_required" ||
 		errorState?.type === "no_models_available";
 
 	return (
@@ -418,30 +449,18 @@ export function QuestionGenerator({
 						<DialogTitle>AI Study Session</DialogTitle>
 					</DialogHeader>
 
-					{isBlockingError ? (
-						<div className="space-y-4">
-							<TokenWarning
-								errorType={errorState?.type}
-								customMessage={errorState?.message}
-							/>
-							<div className="flex justify-end gap-2">
-								<Button
-									variant="secondary"
-									onClick={() => (window.location.href = "/pricing")}
-								>
-									Become Premium
-								</Button>
-								<Button
-									onClick={() => {
+						{isBlockingError ? (
+							<div className="space-y-4">
+								<TokenWarning
+									errorType={errorState?.type}
+									customMessage={errorState?.message}
+									onRetryLater={() => {
 										setErrorState(null);
 										startConversation();
 									}}
-								>
-									Retry
-								</Button>
+								/>
 							</div>
-						</div>
-					) : (
+						) : (
 						<>
 							{/* Messages */}
 							<div className="flex-1 overflow-y-auto space-y-4 py-4">

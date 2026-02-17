@@ -2,138 +2,40 @@ import {
 	streamOpenRouterResponse,
 	METADATA_DELIMITER,
 } from "@/app/api/ai/_utils/openrouter-stream";
+import {
+	routeOpenRouterRequest,
+	type OpenRouterMessage,
+} from "@/app/api/ai/_utils/openrouter-routing";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// List of free models to rotate through
-// List of free models to rotate through
-const FREE_MODELS = [
-	// "google/gemini-2.0-flash-exp:free", // indisponible (404)
-	"meta-llama/llama-3.2-3b-instruct:free", // temporairement rate-limited (429), peut retenter
-	"z-ai/glm-4.5-air:free", // payload incompatible (400), nécessite ajustement du prompt
-	// "openai/gpt-oss-120b:free", // bloqué par politique free (404)
-	"stepfun/step-3.5-flash:free", // OK
+type IncomingChatMessage = {
+	role: "user" | "assistant";
+	content: string;
+};
 
-	"meta-llama/llama-3.3-70b-instruct:free", // OK
-	"qwen/qwen-3-235b-a22b:free", // OK
-	"mistralai/mistral-small-3.1-24b:free", // OK
-	"google/gemma-3-4b-instruct:free", // OK
-];
+function normalizeIncomingMessages(payload: unknown): OpenRouterMessage[] {
+	if (!Array.isArray(payload)) return [];
 
-// Potential premium / higher-capacity models to try during development (explicit list)
-// These are placeholders — pick appropriate paid models when available.
-const PREMIUM_MODELS = [
-	"openai/gpt-4o-mini:paid", // économique et polyvalent
-	"mistralai/mistral-7b-instruct:paid", // milieu de gamme raisonnable
-	// "google/gemini-1-pro:paid",      // 💰 à surveiller / tester en dernier
-	// "anthropic/claude-3-opus:paid",  // 💸 trop coûteux pour tests
-	// ...FREE_MODELS,
-];
+	return payload.flatMap((entry) => {
+		if (!entry || typeof entry !== "object") return [];
+		const maybeRole = (entry as Record<string, unknown>).role;
+		const maybeContent = (entry as Record<string, unknown>).content;
 
-function classifyOpenRouterError(errorData: any) {
-	if (!errorData) return null;
-	const err = errorData.error || errorData;
-	const message = (err?.message || err?.code || "").toString().toLowerCase();
-
-	if (message.includes("context") && message.includes("length"))
-		return "context_length_exceeded";
-	if (message.includes("quota") || message.includes("insufficient"))
-		return "insufficient_quota";
-	if (
-		message.includes("rate") ||
-		message.includes("limit") ||
-		message.includes("429")
-	)
-		return "rate_limit_exceeded";
-	if (message.includes("model") && message.includes("invalid"))
-		return "invalid_model";
-
-	if (
-		err?.code === "CONTEXT_LENGTH_EXCEEDED" ||
-		err?.type === "context_length_exceeded"
-	)
-		return "context_length_exceeded";
-	if (err?.code === "INSUFFICIENT_QUOTA" || err?.type === "insufficient_quota")
-		return "insufficient_quota";
-	if (err?.code === 429 || err?.status === 429) return "rate_limit_exceeded";
-
-	return null;
-}
-
-let currentModelIndex = 0;
-
-const OPENROUTER_KEY =
-	process.env.OPENROUTER_API_KEY ||
-	process.env.OPENROUTER_DEV_API_KEY ||
-	process.env.OPENROUTER_PROD_API_KEY;
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-
-async function callOpenRouter(
-	messages: any[],
-	retryCount = 0,
-): Promise<string> {
-	if (retryCount >= FREE_MODELS.length) {
-		throw new Error(
-			"All free models are currently unavailable. Please try again later.",
-		);
-	}
-
-	const model = FREE_MODELS[currentModelIndex];
-
-	try {
-		if (!OPENROUTER_KEY) {
-			throw new Error(
-				JSON.stringify({
-					error:
-						"OpenRouter API key not configured (OPENROUTER_API_KEY|OPENROUTER_DEV_API_KEY|OPENROUTER_PROD_API_KEY)",
-				}),
-			);
+		if (
+			(maybeRole === "user" || maybeRole === "assistant") &&
+			typeof maybeContent === "string" &&
+			maybeContent.trim().length > 0
+		) {
+			const message: IncomingChatMessage = {
+				role: maybeRole,
+				content: maybeContent,
+			};
+			return [message];
 		}
 
-		const response = await fetch(
-			"https://openrouter.ai/api/v1/chat/completions",
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${OPENROUTER_KEY}`,
-					"Content-Type": "application/json",
-					"HTTP-Referer":
-						process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-					"X-Title": "Echoflow",
-				},
-				body: JSON.stringify({
-					model,
-					messages,
-				}),
-			},
-		);
-
-		if (!response.ok) {
-			const error = await response.json();
-
-			// Si erreur 429 (rate limit), essayer le modèle suivant
-			if (response.status === 429 || error.error?.code === 429) {
-				console.log(`Model ${model} rate limited, switching to next model...`);
-				currentModelIndex = (currentModelIndex + 1) % FREE_MODELS.length;
-				return callOpenRouter(messages, retryCount + 1);
-			}
-
-			throw new Error(JSON.stringify(error));
-		}
-
-		const data = await response.json();
-
-		// Rotation automatique après chaque succès
-		currentModelIndex = (currentModelIndex + 1) % FREE_MODELS.length;
-
-		return data.choices[0].message.content;
-	} catch (error: any) {
-		if (retryCount < FREE_MODELS.length - 1) {
-			currentModelIndex = (currentModelIndex + 1) % FREE_MODELS.length;
-			return callOpenRouter(messages, retryCount + 1);
-		}
-		throw error;
-	}
+		return [];
+	});
 }
 
 export async function POST(request: NextRequest) {
@@ -195,7 +97,7 @@ export async function POST(request: NextRequest) {
 		for (const session of recentSessions || []) {
 			if (!session?.ai_feedback) continue;
 
-			let feedback: any = session.ai_feedback;
+			let feedback: unknown = session.ai_feedback;
 			if (typeof feedback === "string") {
 				try {
 					feedback = JSON.parse(feedback);
@@ -205,8 +107,11 @@ export async function POST(request: NextRequest) {
 			}
 
 			if (!feedback || typeof feedback !== "object") continue;
+			const feedbackRecord = feedback as Record<string, unknown>;
 			const conclusion =
-				typeof feedback.conclusion === "string" ? feedback.conclusion : "";
+				typeof feedbackRecord.conclusion === "string"
+					? feedbackRecord.conclusion
+					: "";
 			if (!conclusion) continue;
 
 			const sessionNoteIds = Array.isArray(session.note_ids)
@@ -293,145 +198,43 @@ ${previousInsightsBlock}
 `;
 
 		// Build conversation history
-		const aiMessages = [{ role: "system", content: systemPrompt }, ...messages];
+		const aiMessages: OpenRouterMessage[] = [
+			{ role: "system", content: systemPrompt },
+			...normalizeIncomingMessages(messages),
+		];
 
-		// Call OpenRouter with retry logic and return a streaming response (SSE)
-		if (!OPENROUTER_KEY) {
+		const aiResult = await routeOpenRouterRequest({
+			supabase,
+			userId: user.id,
+			messages: aiMessages,
+			temperature: 0.7,
+			maxTokens: 500,
+			stream: true,
+			actionType: "QUIZ",
+		});
+
+		if (!aiResult.ok) {
 			return NextResponse.json(
-				{ error: "OpenRouter API key not configured" },
-				{ status: 500 },
+				{
+					error: aiResult.error,
+					code: aiResult.code,
+					details: aiResult.details,
+				},
+				{ status: aiResult.status },
 			);
 		}
 
-		// Determine subscription tier from `profiles` table (preferred) or fallback to user metadata
-		let subscriptionTier = "FREE";
-		try {
-			const { data: profile } = await supabase
-				.from("profiles")
-				.select("subscription_tier")
-				.eq("id", user.id)
-				.maybeSingle();
-			if (profile?.subscription_tier)
-				subscriptionTier = profile.subscription_tier;
-		} catch (e) {
-			console.warn(
-				"Failed to read profile subscription_tier, falling back to user metadata",
-				e,
-			);
-			if (
-				user?.user_metadata?.is_premium ||
-				user?.app_metadata?.plan === "premium"
-			) {
-				subscriptionTier = "PRO";
-			}
-		}
-
-		const isPremium = subscriptionTier === "PRO";
-		const modelsToTry = isPremium ? PREMIUM_MODELS : FREE_MODELS; // Temporaire
-
-		let lastError: any = null;
-		for (const model of modelsToTry) {
-			try {
-				const response = await fetch(
-					`${OPENROUTER_BASE_URL}/chat/completions`,
-					{
-						method: "POST",
-						headers: {
-							Authorization: `Bearer ${OPENROUTER_KEY}`,
-							"Content-Type": "application/json",
-							"HTTP-Referer":
-								process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-							"X-Title": "Echoflow",
-						},
-						body: JSON.stringify({
-							model,
-							messages: aiMessages,
-							temperature: 0.7,
-							max_tokens: 500,
-							stream: true,
-						}),
-					},
-				);
-
-				if (!response.ok) {
-					const errData = await response.json().catch(() => null);
-					const classified = classifyOpenRouterError(errData);
-					console.warn(
-						`Model ${model} failed (${classified || "unknown"}):`,
-						errData,
-					);
-					lastError = errData || { status: response.status };
-
-					if (classified === "invalid_model") {
-						// try next model
-						continue;
-					}
-
-					if (classified === "context_length_exceeded") {
-						console.error("Context length exceeded for model:", model);
-						return NextResponse.json(
-							{
-								error: "Context length exceeded for this model",
-								code: "context_length_exceeded",
-								recommendedAction: "reduce_prompt_or_upgrade",
-							},
-							{ status: 400 },
-						);
-					}
-
-					if (classified === "insufficient_quota") {
-						console.error("Insufficient quota (OpenRouter) for model:", model);
-						return NextResponse.json(
-							{
-								error: "Insufficient quota on OpenRouter",
-								code: "insufficient_quota",
-							},
-							{ status: 503 },
-						);
-					}
-
-					if (classified === "rate_limit_exceeded") {
-						console.warn("Rate limit reached for model:", model);
-						return NextResponse.json(
-							{ error: "Rate limit reached", code: "rate_limit_exceeded" },
-							{ status: 429 },
-						);
-					}
-
-					// Unknown error: continue to next model
-					continue;
-				}
-
-				return streamOpenRouterResponse(response, model);
-			} catch (err) {
-				console.warn(`Model ${model} threw error:`, err);
-				lastError = err;
-				continue;
-			}
-		}
-
-		console.error("All models failed. Last error:", lastError);
-
-		// Determine appropriate error code based on last error
-		const errorCode =
-			lastError?.error?.code === 429 ||
-			(typeof lastError === "object" && lastError?.message?.includes("rate"))
-				? "RATE_LIMIT_EXCEEDED"
-				: "ALL_MODELS_FAILED";
-
-		return NextResponse.json(
-			{
-				error:
-					"All AI models are currently unavailable. Please try again later.",
-				code: errorCode,
-				details: lastError,
-			},
-			{ status: 503 },
+		return streamOpenRouterResponse(
+			aiResult.response,
+			aiResult.model,
+			aiResult.keySource,
 		);
-	} catch (error: any) {
+	} catch (error: unknown) {
+		const message =
+			error instanceof Error ? error.message : "Failed to generate response";
 		console.error("Error in quiz-multi:", error);
 		return NextResponse.json(
-			{ error: error.message || "Failed to generate response" },
+			{ error: message },
 			{ status: 500 },
 		);
 	}

@@ -3,6 +3,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/AppShell";
+import { FeedbackPrompt } from "@/components/feedback/FeedbackPrompt";
 import "../globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function ProtectedLayout({
 			>
 				{children}
 			</React.Suspense>
+			<FeedbackPrompt />
 		</AppShell>
 	);
 }

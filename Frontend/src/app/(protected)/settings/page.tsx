@@ -1,9 +1,18 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { OpenRouterKeyCard } from '@/components/settings/OpenRouterKeyCard';
 
-export default async function SettingsPage() {
+type SettingsPageProps = {
+	searchParams: Promise<{
+		section?: string;
+	}>;
+};
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const resolvedSearchParams = await searchParams;
+  const showAiKeyFocus = resolvedSearchParams.section === 'ai-key';
 
   if (!user) {
     redirect('/auth/login');
@@ -42,6 +51,13 @@ export default async function SettingsPage() {
             </span>
           </div>
         </div>
+      </div>
+
+      <div
+        id="ai-key"
+        className={`rounded-lg border p-2 ${showAiKeyFocus ? 'border-primary/60 ring-1 ring-primary/40' : ''}`}
+      >
+        <OpenRouterKeyCard autoFocusInput={showAiKeyFocus} />
       </div>
 
       <div className="rounded-lg border border-destructive/50 p-6">

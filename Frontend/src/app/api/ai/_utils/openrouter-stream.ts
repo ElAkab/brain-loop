@@ -4,6 +4,8 @@ export type StreamMetadata = {
 	conclusion: string;
 };
 
+export type KeySource = "platform" | "byok";
+
 export const METADATA_DELIMITER = "\n\n<<METADATA_JSON>>\n";
 
 const EMPTY_METADATA: StreamMetadata = {
@@ -55,6 +57,7 @@ function enqueueDone(controller: ReadableStreamDefaultController) {
 export function streamOpenRouterResponse(
 	openRouterResponse: Response,
 	modelUsed: string,
+	keySource: KeySource = "platform",
 ): Response {
 	const stream = new ReadableStream({
 		async start(controller) {
@@ -169,6 +172,7 @@ export function streamOpenRouterResponse(
 			"Cache-Control": "no-cache",
 			Connection: "keep-alive",
 			"X-Model-Used": modelUsed,
+			"X-Key-Source": keySource,
 		},
 	});
 }

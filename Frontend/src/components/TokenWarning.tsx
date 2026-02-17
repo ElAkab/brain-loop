@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Clock, Crown } from "lucide-react";
+import { AlertTriangle, Clock, Crown, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -15,12 +15,16 @@ import {
 export interface TokenWarningProps {
 	errorType?:
 		| "quota_exhausted"
+		| "platform_budget_exhausted"
+		| "byok_or_upgrade_required"
 		| "rate_limit"
 		| "no_models_available"
 		| "generic";
 	customMessage?: string;
 	premiumUrl?: string;
+	byokUrl?: string;
 	onRetryLater?: () => void;
+	onOpenApiKeySettings?: () => void;
 	variant?: "card" | "inline";
 }
 
@@ -30,6 +34,18 @@ const ERROR_MESSAGES = {
 		description:
 			"All free AI models have reached their limit. Please try again in a few minutes or upgrade to premium for unlimited access.",
 		icon: AlertTriangle,
+	},
+	platform_budget_exhausted: {
+		title: "Platform budget reached",
+		description:
+			"The shared AI budget is exhausted for today. Add your own OpenRouter key or upgrade to keep learning.",
+		icon: AlertTriangle,
+	},
+	byok_or_upgrade_required: {
+		title: "Continue with your API key",
+		description:
+			"To continue right now, add your personal OpenRouter API key in settings, or upgrade to premium.",
+		icon: KeyRound,
 	},
 	rate_limit: {
 		title: "Rate limit reached",
@@ -54,7 +70,9 @@ export function TokenWarning({
 	errorType = "quota_exhausted",
 	customMessage,
 	premiumUrl = "/pricing",
+	byokUrl = "/settings?section=ai-key",
 	onRetryLater,
+	onOpenApiKeySettings,
 	variant = "card",
 }: TokenWarningProps) {
 	const router = useRouter();
@@ -73,24 +91,40 @@ export function TokenWarning({
 		router.push(premiumUrl);
 	};
 
+	const handleOpenApiKeySettings = () => {
+		if (onOpenApiKeySettings) {
+			onOpenApiKeySettings();
+			return;
+		}
+
+		router.push(byokUrl);
+	};
+
 	if (variant === "inline") {
 		return (
-			<div className="flex items-center gap-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-				<Icon className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+			<div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+				<div className="flex items-center gap-2 w-full sm:w-auto">
+					<Icon className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+					<div className="flex-1 sm:hidden">
+						<p className="text-sm font-medium text-yellow-500">
+							{errorConfig.title}
+						</p>
+					</div>
+				</div>
 				<div className="flex-1">
-					<p className="text-sm font-medium text-yellow-500">
+					<p className="text-sm font-medium text-yellow-500 hidden sm:block">
 						{errorConfig.title}
 					</p>
 					<p className="text-xs text-muted-foreground mt-1">
 						{customMessage || errorConfig.description}
 					</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
 					<Button
 						variant="outline"
 						size="sm"
 						onClick={handleRetryLater}
-						className="dark:hover:bg-gray-700/30 dark:hover:text-white transition cursor-pointer"
+						className="w-full sm:w-auto dark:hover:bg-gray-700/30 dark:hover:text-white transition cursor-pointer"
 					>
 						<Clock className="h-4 w-4 mr-2 cursor-pointer" />
 						Retry
@@ -98,10 +132,19 @@ export function TokenWarning({
 					<Button
 						size="sm"
 						onClick={handleUpgradeToPremium}
-						className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition cursor-pointer"
+						className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition cursor-pointer"
 					>
 						<Crown className="h-4 w-4 mr-2 cursor-pointer" />
 						Premium
+					</Button>
+					<Button
+						size="sm"
+						variant="secondary"
+						onClick={handleOpenApiKeySettings}
+						className="w-full sm:w-auto cursor-pointer"
+					>
+						<KeyRound className="h-4 w-4 mr-2 cursor-pointer" />
+						Key
 					</Button>
 				</div>
 			</div>
@@ -110,42 +153,51 @@ export function TokenWarning({
 
 	return (
 		<Card className="w-full max-w-md mx-auto border-yellow-500/20 bg-yellow-500/5">
-			<CardHeader className="text-center">
+			<CardHeader className="text-center pb-2">
 				<div className="mx-auto w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mb-4">
 					<Icon className="h-6 w-6 text-yellow-500" />
 				</div>
 				<CardTitle className="text-yellow-500">{errorConfig.title}</CardTitle>
-				<CardDescription className="text-base">
+				<CardDescription className="text-base mt-2">
 					{customMessage || errorConfig.description}
 				</CardDescription>
 			</CardHeader>
 
-			<CardContent className="space-y-4">
+			<CardContent className="space-y-4 pb-4">
 				<div className="bg-muted/50 p-4 rounded-lg text-sm text-muted-foreground">
 					<p className="font-medium mb-2">💡 Tip:</p>
 					<ul className="space-y-1 text-xs">
 						<li>• Free quotas automatically refill over time</li>
 						<li>• Premium plan offers unlimited and priority access</li>
+						<li>• You can bring your own OpenRouter API key anytime</li>
 						<li>• Your notes and categories are safely saved</li>
 					</ul>
 				</div>
 			</CardContent>
 
-			<CardFooter className="flex gap-3">
+			<CardFooter className="flex flex-col sm:flex-row gap-3 pt-0">
 				<Button
 					variant="outline"
-					className="flex-1 cursor-pointer dark:hover:bg-gray-700/30 dark:hover:text-white"
+					className="w-full cursor-pointer dark:hover:bg-gray-700/30 dark:hover:text-white"
 					onClick={handleRetryLater}
 				>
 					<Clock className="h-4 w-4 mr-2" />
-					Retry later
+					Retry
 				</Button>
 				<Button
-					className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 dark:hover:from-purple-700 dark:hover:to-pink-700 transition cursor-pointer"
+					className="w-full bg-gradient-to-r from-purple-600 to-pink-600 dark:hover:from-purple-700 dark:hover:to-pink-700 transition cursor-pointer"
 					onClick={handleUpgradeToPremium}
 				>
 					<Crown className="h-4 w-4 mr-2" />
-					Become Premium
+					Premium
+				</Button>
+				<Button
+					variant="secondary"
+					className="w-full cursor-pointer"
+					onClick={handleOpenApiKeySettings}
+				>
+					<KeyRound className="h-4 w-4 mr-2" />
+					API Key
 				</Button>
 			</CardFooter>
 		</Card>

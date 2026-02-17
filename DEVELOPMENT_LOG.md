@@ -4,6 +4,65 @@ This document tracks the development journey of Echoflow, documenting each sessi
 
 ---
 
+## Session 2026-02-14: Premium-First + BYOK Freemium Recovery ✅
+
+### Objective
+
+Implement a premium-first AI routing strategy for all users, add encrypted BYOK key management, introduce a platform budget guardrail, and provide a non-blocking UX recovery path (Upgrade or Add API Key).
+
+### GitHub Copilot CLI Features Used
+
+- ✅ **Backend refactor**: Unified OpenRouter routing logic in a shared utility
+- ✅ **Security implementation**: Added AES-GCM BYOK encryption/decryption helpers
+- ✅ **Database migration**: Added `user_ai_keys` table with RLS policies and triggers
+- ✅ **API design**: Implemented `/api/settings/openrouter-key` (GET, PUT, DELETE + key test)
+- ✅ **UX enhancement**: Expanded TokenWarning with dual CTA (Premium + API Key)
+- ✅ **Product pages**: Added `/pricing` and BYOK management card in settings
+- ✅ **Operational safety**: Added configurable soft/hard platform budget guardrail
+
+### Implementation Details
+
+- New migration: `Backend/migrations/20260214000000_user_ai_keys.sql`
+  - Encrypted key storage (`encrypted_key`) + display-safe suffix (`key_last4`)
+  - RLS policies for own-row access only
+  - `updated_at` trigger via `handle_updated_at()`
+- New security utility: `Frontend/src/lib/security/byok-crypto.ts`
+  - AES-256-GCM encryption at rest
+  - Secret from `BYOK_ENCRYPTION_SECRET`
+- New admin client: `Frontend/src/lib/supabase/admin.ts`
+  - Service-role operations for budget checks and usage logging
+- New AI router utility: `Frontend/src/app/api/ai/_utils/openrouter-routing.ts`
+  - Premium-first model order
+  - Key order: platform first, then BYOK
+  - Error normalization: `context_length_exceeded`, `rate_limit_exceeded`, `insufficient_quota`, `platform_budget_exhausted`, `byok_or_upgrade_required`, `ALL_MODELS_FAILED`
+  - Daily platform hard cap (`OPENROUTER_PLATFORM_DAILY_REQUEST_LIMIT`) with soft threshold warnings (`OPENROUTER_PLATFORM_SOFT_LIMIT_RATIO`)
+- Updated SSE stream headers in `Frontend/src/app/api/ai/_utils/openrouter-stream.ts`
+  - Added `X-Key-Source` in addition to existing `X-Model-Used`
+- Refactored routes:
+  - `Frontend/src/app/api/ai/generate-questions/route.ts`
+  - `Frontend/src/app/api/ai/quiz-multi/route.ts`
+  - Removed duplicated model-rotation code and dead path in multi-note route
+- Added BYOK settings API:
+  - `Frontend/src/app/api/settings/openrouter-key/route.ts`
+- Added BYOK UI:
+  - `Frontend/src/components/settings/OpenRouterKeyCard.tsx`
+  - Integrated in `Frontend/src/app/(protected)/settings/page.tsx`
+- Added pricing page:
+  - `Frontend/src/app/pricing/page.tsx`
+- Updated warning UX:
+  - `Frontend/src/components/TokenWarning.tsx`
+  - `Frontend/src/components/notes/QuestionGenerator.tsx`
+  - `Frontend/src/components/notes/MultiNoteQuiz.tsx`
+
+### Validation
+
+- ✅ `pnpm type-check` passes
+- ✅ New `/pricing` route added
+- ✅ Settings now supports encrypted BYOK key save/test/delete flow
+- ✅ AI routes now return actionable recovery codes for freemium continuity
+
+---
+
 ## Session 2026-02-06: Streaming + Multi-turn Fixes ✅
 
 ### Objective
@@ -1505,4 +1564,4 @@ Added ability to select multiple notes for AI quizzing, providing broader contex
 
 ---
 
-**Last Updated**: 2026-02-06 by GitHub Copilot CLI
+**Last Updated**: 2026-02-14 by GitHub Copilot CLI

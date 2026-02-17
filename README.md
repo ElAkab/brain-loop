@@ -126,31 +126,27 @@ study_sessions
 ### AI Integration Flow
 
 1. **User initiates quiz** → API route receives note(s) + optional previous feedback
-2. **OpenRouter API call** → Tries free models in rotation (deepseek, qwen, llama)
+2. **OpenRouter API call** → Premium-first model routing (shared platform key first, BYOK fallback)
 3. **Streaming response** → JSON format: `{ chat_response, analysis, weaknesses, conclusion }`
 4. **Frontend parsing** → Displays only `chat_response`, stores full JSON
 5. **Session tracking** → Saves conversation + AI feedback to `study_sessions`
 6. **Adaptive learning** → Next quiz uses previous `conclusion` for context
 
-### Model Rotation Strategy
+### Premium-First Routing Strategy
 
 ```typescript
-const FREE_MODELS = [
-	"deepseek/deepseek-chat",
-	"qwen/qwen-2.5-72b-instruct",
-	"meta-llama/llama-3.1-8b-instruct:free",
+const PREMIUM_MODELS = [
+	"openai/gpt-4o-mini:paid",
+	"mistralai/mistral-7b-instruct:paid",
 ];
 
-// Fallback logic: try each model until success
-for (const model of FREE_MODELS) {
-	try {
-		const response = await callOpenRouter(model, prompt);
-		return response;
-	} catch (error) {
-		if (isRateLimitError(error)) continue;
-		throw error;
-	}
-}
+const FALLBACK_MODELS = [
+	"meta-llama/llama-3.3-70b-instruct:free",
+	"qwen/qwen-3-235b-a22b:free",
+];
+
+// Key order: platform key first, then user BYOK key
+// Hard daily cap can block platform key and force BYOK / upgrade path
 ```
 
 ---
@@ -196,6 +192,15 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # OpenRouter
 OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_DEV_API_KEY=your_openrouter_dev_key
+OPENROUTER_PROD_API_KEY=your_openrouter_prod_key
+OPENROUTER_PREMIUM_MODELS=openai/gpt-4o-mini:paid,mistralai/mistral-7b-instruct:paid
+OPENROUTER_FALLBACK_MODELS=meta-llama/llama-3.3-70b-instruct:free,qwen/qwen-3-235b-a22b:free,mistralai/mistral-small-3.1-24b:free,google/gemma-3-4b-instruct:free
+
+# BYOK + budget guardrail
+BYOK_ENCRYPTION_SECRET=your_32_byte_secret
+OPENROUTER_PLATFORM_DAILY_REQUEST_LIMIT=250
+OPENROUTER_PLATFORM_SOFT_LIMIT_RATIO=0.9
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000

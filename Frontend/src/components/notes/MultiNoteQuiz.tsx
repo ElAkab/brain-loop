@@ -5,6 +5,7 @@ import { Markdown } from "@/components/ui/markdown";
 import { TokenWarning, type TokenWarningProps } from "@/components/TokenWarning";
 import { Button } from "@/components/ui/button";
 import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
+import { useFeedbackStore } from "@/lib/store/feedback-store";
 
 interface Message {
 	role: "user" | "assistant";
@@ -22,6 +23,8 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	const [loading, setLoading] = useState(false);
 	const [hasStarted, setHasStarted] = useState(false);
 	const [startTime] = useState(Date.now());
+	const [modelUsed, setModelUsed] = useState("unknown");
+	const [keySource, setKeySource] = useState("unknown");
 	const [errorState, setErrorState] = useState<{
 		type: TokenWarningProps["errorType"];
 		message?: string;
@@ -38,6 +41,14 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		code?: string | number,
 	): TokenWarningProps["errorType"] => {
 		const normalized = (code ?? "").toString().toLowerCase();
+
+		if (normalized.includes("platform_budget_exhausted")) {
+			return "platform_budget_exhausted";
+		}
+
+		if (normalized.includes("byok_or_upgrade_required")) {
+			return "byok_or_upgrade_required";
+		}
 
 		if (
 			normalized.includes("quota") ||
@@ -141,6 +152,15 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 				return;
 			}
 
+			const responseModel = res.headers.get("X-Model-Used");
+			if (responseModel) {
+				setModelUsed(responseModel);
+			}
+			const responseKeySource = res.headers.get("X-Key-Source");
+			if (responseKeySource) {
+				setKeySource(responseKeySource);
+			}
+
 			await processStream(res, []);
 		} catch (error) {
 			console.error("Failed to start quiz:", error);
@@ -199,6 +219,15 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 				return;
 			}
 
+			const responseModel = res.headers.get("X-Model-Used");
+			if (responseModel) {
+				setModelUsed(responseModel);
+			}
+			const responseKeySource = res.headers.get("X-Key-Source");
+			if (responseKeySource) {
+				setKeySource(responseKeySource);
+			}
+
 			await processStream(res, updatedMessages);
 		} catch (error) {
 			console.error("Failed to send message:", error);
@@ -213,6 +242,8 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 
 	const isBlockingError =
 		errorState?.type === "quota_exhausted" ||
+		errorState?.type === "platform_budget_exhausted" ||
+		errorState?.type === "byok_or_upgrade_required" ||
 		errorState?.type === "no_models_available";
 
 	if (!hasStarted) {
@@ -247,31 +278,18 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	return (
 		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 			<div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-				{isBlockingError ? (
-					<div className="space-y-4">
-						<TokenWarning
-							errorType={errorState?.type}
-							customMessage={errorState?.message}
-						/>
-						<div className="flex justify-end gap-2">
-							<Button
-								variant="secondary"
-								onClick={() => (window.location.href = "/pricing")}
-							>
-								Become Premium
-							</Button>
-							<Button
-								onClick={() => {
+					{isBlockingError ? (
+						<div className="space-y-4">
+							<TokenWarning
+								errorType={errorState?.type}
+								customMessage={errorState?.message}
+								onRetryLater={() => {
 									setErrorState(null);
-									// close modal
-									onClose();
+									startQuiz();
 								}}
-							>
-								Retry
-							</Button>
+							/>
 						</div>
-					</div>
-				) : (
+					) : (
 					<>
 						{/* Header */}
 						<div className="flex justify-between items-center p-4 border-b">
@@ -304,7 +322,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 												noteIds,
 												categoryId,
 												sessionType: "MULTI_NOTE",
-												modelUsed: "rotation-free-models",
+												modelUsed: `${keySource}:${modelUsed}`,
 												conversationHistory: messages,
 												aiFeedback: JSON.stringify(lastFeedback),
 												questionsAsked,
@@ -315,6 +333,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 										console.error("Failed to save study session:", error);
 									}
 
+									useFeedbackStore.getState().triggerFeedback();
 									onClose();
 								}}
 								className="px-3 py-1 text-gray-600 hover:text-gray-800 cursor-pointer"

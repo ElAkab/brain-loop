@@ -252,11 +252,21 @@ CREATE TABLE public.usage_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 5. USER AI KEYS (BYOK encrypted storage)
+CREATE TABLE public.user_ai_keys (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  encrypted_key TEXT NOT NULL,
+  key_last4 TEXT NOT NULL CHECK (char_length(key_last4) = 4),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- RLS POLICIES (Security Examples)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_ai_keys ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES: Users can view and update only their own profile
 CREATE POLICY "Users can view own profile" ON public.profiles
@@ -294,6 +304,19 @@ CREATE POLICY "Users can delete own notes" ON public.notes
 -- USAGE_LOGS: Read-only access to own logs (for analytics)
 CREATE POLICY "Users can view own usage logs" ON public.usage_logs
   FOR SELECT USING (auth.uid() = user_id);
+
+-- USER_AI_KEYS: Users can manage only their own encrypted BYOK key
+CREATE POLICY "Users can view own AI key" ON public.user_ai_keys
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own AI key" ON public.user_ai_keys
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own AI key" ON public.user_ai_keys
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own AI key" ON public.user_ai_keys
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- TRIGGER for Profile Creation
 CREATE FUNCTION public.handle_new_user()
@@ -387,4 +410,3 @@ echoflow/
 ```
 
 ## Checklist Results Report
-
