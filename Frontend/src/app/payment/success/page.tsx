@@ -13,11 +13,11 @@ export default function PaymentSuccessPage() {
           <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
             <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
           </div>
-          <CardTitle className="text-2xl">Payment Successful!</CardTitle>
+          <CardTitle className="text-2xl">Credits Added!</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            Thank you for upgrading to Echoflow Pro. Your account has been updated with unlimited access.
+            Your credits have been added to your account. You can now generate more AI quizzes!
           </p>
         </CardContent>
         <CardFooter className="flex justify-center pt-2">

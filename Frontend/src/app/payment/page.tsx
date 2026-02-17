@@ -1,174 +1,165 @@
 "use client";
 
-import React, { useState } from "react";
-import { loadStripe, Stripe } from "@stripe/stripe-js";
+import { useState } from "react";
+import { Coins, Check, Sparkles, Zap, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-	Card,
-	CardHeader,
-	CardTitle,
-	CardDescription,
-	CardContent,
-	CardFooter,
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { CreditDisplay } from "@/components/credits/CreditDisplay";
+import { loadStripe } from "@stripe/stripe-js";
 
-// Initialize Stripe outside of component to avoid recreating it on every render
-const stripePromise = loadStripe(
-	process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string,
-);
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+const CREDIT_PACKS = [
+  {
+    id: "starter",
+    name: "Starter Pack",
+    credits: 50,
+    price: 5,
+    description: "Parfait pour démarrer",
+    icon: Zap,
+    popular: false,
+  },
+  {
+    id: "popular",
+    name: "Popular Pack",
+    credits: 120,
+    price: 10,
+    description: "20% de bonus inclus",
+    icon: Sparkles,
+    popular: true,
+  },
+  {
+    id: "pro",
+    name: "Pro Pack",
+    credits: 300,
+    price: 20,
+    description: "Meilleur rapport qualité/prix",
+    icon: Crown,
+    popular: false,
+  },
+];
 
 export default function PaymentPage() {
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
 
-	const handleSubscribe = async () => {
-		setLoading(true);
-		setError(null);
+  const handlePurchase = async (packId: string) => {
+    setLoading(packId);
+    
+    try {
+      const response = await fetch("/api/credits/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pack: packId }),
+      });
 
-		try {
-			const response = await fetch("/api/checkout_sessions", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					plan: "pro",
-				}),
-			});
+      const data = await response.json();
 
-			if (!response.ok) {
-				const data = await response.json();
-				throw new Error(data.error || "Failed to create checkout session");
-			}
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error("Checkout error:", data.error);
+        alert("Erreur lors de la création du paiement. Veuillez réessayer.");
+      }
+    } catch (error) {
+      console.error("Purchase error:", error);
+      alert("Une erreur s'est produite. Veuillez réessayer.");
+    } finally {
+      setLoading(null);
+    }
+  };
 
-			const { sessionId } = await response.json();
-			const stripe = await stripePromise;
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <h1 className="text-3xl font-bold">Acheter des Study Questions</h1>
+        <p className="text-muted-foreground max-w-lg mx-auto">
+          Les crédits vous permettent de générer des quizzes IA sans limite.
+          <br />
+          1 crédit = 1 quiz généré.
+        </p>
+        <div className="flex justify-center">
+          <CreditDisplay variant="full" />
+        </div>
+      </div>
 
-			if (!stripe) {
-				throw new Error("Stripe failed to load");
-			}
+      <Separator />
 
-			// Use the new method recommended in recent Stripe.js versions
-			// redirectToCheckout is deprecated in newer versions in favor of specific methods
-			// The modern way is to rely on the URL returned by the backend session creation.
-			// However, since we have the sessionId, let's try to use redirectToCheckout if it exists on the instance (cast to any),
-			// or fallback to window.location if the session object had a url (which we don't seem to be fetching here, just sessionId).
-			
-			// If we fix the backend fetch to return url, that would be ideal.
-			// But sticking to the existing code structure:
-			
-			const { error } = await (stripe as any).redirectToCheckout({ sessionId });
+      {/* Packs */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {CREDIT_PACKS.map((pack) => (
+          <Card
+            key={pack.id}
+            className={`relative flex flex-col ${
+              pack.popular ? "border-primary shadow-lg" : ""
+            }`}
+          >
+            {pack.popular && (
+              <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary">
+                Le plus populaire
+              </Badge>
+            )}
+            <CardHeader>
+              <div className="flex items-center gap-2 mb-2">
+                <pack.icon className="h-5 w-5 text-primary" />
+                <CardTitle className="text-xl">{pack.name}</CardTitle>
+              </div>
+              <CardDescription>{pack.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1">
+              <div className="text-center space-y-2">
+                <div className="text-4xl font-bold">{pack.credits}</div>
+                <div className="text-sm text-muted-foreground">questions</div>
+                <div className="text-2xl font-semibold text-primary">
+                  {pack.price}€
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                size="lg"
+                variant={pack.popular ? "default" : "outline"}
+                onClick={() => handlePurchase(pack.id)}
+                disabled={loading === pack.id}
+              >
+                {loading === pack.id ? (
+                  "Chargement..."
+                ) : (
+                  <>
+                    <Coins className="mr-2 h-4 w-4" />
+                    Acheter
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
 
-			if (error) {
-				throw error;
-			}
-		} catch (err: any) {
-			console.error("Payment error:", err);
-			setError(err.message || "An unexpected error occurred");
-			setLoading(false);
-		}
-	};
-
-	return (
-		<div className="container mx-auto py-12 px-4 max-w-4xl">
-			<div className="text-center mb-10">
-				<h1 className="text-3xl font-bold tracking-tight mb-2">
-					Upgrade to Pro
-				</h1>
-				<p className="text-muted-foreground text-lg">
-					Unlock the full potential of your learning with Echoflow Pro.
-				</p>
-			</div>
-
-			<div className="grid md:grid-cols-2 gap-8 items-start">
-				{/* Free Plan */}
-				<Card className="relative overflow-hidden border-muted">
-					<CardHeader>
-						<CardTitle className="text-2xl">Free</CardTitle>
-						<CardDescription>Perfect for getting started</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="text-3xl font-bold">
-							$0
-							<span className="text-base font-normal text-muted-foreground">
-								/month
-							</span>
-						</div>
-						<ul className="space-y-2 text-sm">
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Basic note taking</span>
-							</li>
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Limited AI quizzes</span>
-							</li>
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Community support</span>
-							</li>
-						</ul>
-					</CardContent>
-					<CardFooter>
-						<Button variant="outline" className="w-full" disabled>
-							Current Plan
-						</Button>
-					</CardFooter>
-				</Card>
-
-				{/* Pro Plan */}
-				<Card className="relative overflow-hidden border-primary shadow-lg ring-1 ring-primary/20">
-					<div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-bl-lg">
-						Popular
-					</div>
-					<CardHeader>
-						<CardTitle className="text-2xl">Pro</CardTitle>
-						<CardDescription>For serious learners</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="text-3xl font-bold">
-							$9.99
-							<span className="text-base font-normal text-muted-foreground">
-								/month
-							</span>
-						</div>
-						<ul className="space-y-2 text-sm">
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Unlimited AI quizzes</span>
-							</li>
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Advanced analytics</span>
-							</li>
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Priority support</span>
-							</li>
-							<li className="flex items-center gap-2">
-								<Check className="h-4 w-4 text-primary" />
-								<span>Custom AI personas</span>
-							</li>
-						</ul>
-					</CardContent>
-					<CardFooter className="flex flex-col gap-2">
-						<Button
-							className="w-full"
-							onClick={handleSubscribe}
-							disabled={loading}
-						>
-							{loading ? "Processing..." : "Subscribe Now"}
-						</Button>
-						{error && (
-							<p className="text-sm text-destructive text-center">{error}</p>
-						)}
-						<p className="text-xs text-muted-foreground text-center">
-							Secure payment via Stripe. Cancel anytime.
-						</p>
-					</CardFooter>
-				</Card>
-			</div>
-		</div>
-	);
+      {/* FAQ / Info */}
+      <div className="bg-muted rounded-lg p-6 space-y-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Check className="h-5 w-5 text-primary" />
+          Comment ça marche ?
+        </h3>
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li>• Chaque crédit vous permet de générer 1 quiz IA</li>
+          <li>• Les crédits n'expirent jamais</li>
+          <li>• Paiement sécurisé via Stripe</li>
+          <li>• Reçu par email après achat</li>
+          <li>• Vous pouvez aussi utiliser votre propre clé OpenRouter (BYOK) gratuitement</li>
+        </ul>
+      </div>
+    </div>
+  );
 }
