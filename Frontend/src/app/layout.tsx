@@ -1,8 +1,14 @@
 // layout.tsx : Defines the root layout for the Next.js application, including metadata and global styles.
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
+
+// Viewport configuration for responsive design on mobile devices
+export const viewport: Viewport = {
+	width: "device-width",
+	initialScale: 1,
+};
 
 // Metadata for the application, including title and description.
 export const metadata: Metadata = {
