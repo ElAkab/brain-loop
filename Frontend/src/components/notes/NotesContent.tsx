@@ -176,9 +176,9 @@ export function NotesContent({
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+			<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 				<div>
-					<h1 className="text-2xl sm:text-3xl font-bold">Your Notes</h1>
+					<h1 className="text-2xl md:text-3xl font-bold">Your Notes</h1>
 					<p className="text-muted-foreground mt-1">
 						{filteredNotes.length}{" "}
 						{filteredNotes.length === 1 ? "note" : "notes"}
@@ -335,7 +335,7 @@ export function NotesContent({
 			</div>
 
 			{/* Search & Filter Bar */}
-			<div className="flex gap-4">
+			<div className="flex flex-col sm:flex-row gap-3">
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
@@ -347,7 +347,7 @@ export function NotesContent({
 				</div>
 
 				<Select value={selectedCategory} onValueChange={setSelectedCategory}>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="w-full sm:w-[200px]">
 						<SelectValue placeholder="All categories" />
 					</SelectTrigger>
 					<SelectContent>
@@ -434,7 +434,7 @@ export function NotesContent({
 
 								{/* Mobile Menu Button (Top Right) */}
 								{!isSelectionMode && (
-									<div className="absolute top-3 right-3 z-10 sm:hidden">
+									<div className="absolute top-3 right-3 z-10 md:hidden">
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button
@@ -509,8 +509,8 @@ export function NotesContent({
 									<div className="px-5 py-3 border-t border-border bg-card/50 flex items-center justify-between">
 										<QuestionGenerator noteId={note.id} variant="compact" />
 
-										{/* Desktop actions (hover) - hidden on mobile */}
-										<div className="hidden sm:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+										{/* Desktop actions (hover) - hidden on mobile/tablet */}
+										<div className="hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 											<Button
 												size="icon"
 												variant="ghost"

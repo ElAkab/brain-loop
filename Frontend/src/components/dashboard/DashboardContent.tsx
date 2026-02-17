@@ -66,7 +66,7 @@ export function DashboardContent({
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+					<h1 className="text-2xl md:text-3xl font-bold tracking-tight">
 						Your Categories
 					</h1>
 					<p className="text-sm text-muted-foreground mt-1">
@@ -150,7 +150,7 @@ export function DashboardContent({
 
 									{/* Mobile Menu Button (Top Right) - Visible only on mobile */}
 									<div 
-										className="absolute top-2 right-2 sm:hidden z-20" 
+										className="absolute top-2 right-2 md:hidden z-20" 
 										onClick={(e) => {
 											e.preventDefault();
 											e.stopPropagation();
@@ -217,7 +217,7 @@ export function DashboardContent({
 											</div>
 
 							{/* Actions - Desktop only (hover) */}
-													<div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+													<div className="hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
 														<Button
 															size="icon"
 															variant="ghost"
