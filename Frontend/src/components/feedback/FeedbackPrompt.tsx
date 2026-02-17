@@ -65,14 +65,26 @@ export function FeedbackPrompt() {
 
             {!submitted ? (
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-sm">How was your session?</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Help us improve your learning experience.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    {/* Placeholder for your avatar */}
+                    <div className="h-10 w-10 rounded-full bg-primary/10 overflow-hidden border border-border flex items-center justify-center">
+                      <img 
+                        src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" 
+                        alt="Adam's Avatar" 
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-sm pt-0.5">How was your session?</h3>
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      I'd love to hear your thoughts to help improve the experience.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex justify-between gap-2">
+                <div className="flex justify-between gap-2 pl-[3.25rem]">
                   <Button
                     variant={rating === 'helpful' ? 'default' : 'outline'}
                     size="sm"

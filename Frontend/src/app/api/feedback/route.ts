@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
-export async function GET(req: Request) {
-  const supabase = await createClient();
-  const url = new URL(req.url);
-  const rating = url.searchParams.get('rating');
+export async function GET(req: NextRequest) {
+  const supabase = await createClient(req);
+  const searchParams = req.nextUrl.searchParams;
+  const rating = searchParams.get('rating');
 
   let query = supabase
     .from('feedback')
@@ -24,13 +24,14 @@ export async function GET(req: Request) {
   return NextResponse.json(data);
 }
 
-export async function POST(req: Request) {
-  const supabase = await createClient();
+export async function POST(req: NextRequest) {
+  const supabase = await createClient(req);
   
   // Get user session
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (authError || !user) {
+    console.error('Auth error in feedback:', authError);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -42,6 +43,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Rating is required' }, { status: 400 });
     }
 
+    // Ensure user_id is passed correctly. The table expects UUID.
+    // user.id is string (UUID format) from Supabase Auth.
+    
     const { data, error } = await supabase
       .from('feedback')
       .insert({
@@ -53,11 +57,13 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      console.error('Database insertion error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (err: any) {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    console.error('Feedback API Error:', err);
+    return NextResponse.json({ error: 'Invalid request: ' + err.message }, { status: 400 });
   }
 }
