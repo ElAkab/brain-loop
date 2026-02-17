@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const DAILY_FREE_QUOTA = 20;
+
 /**
  * GET /api/credits
- * Retourne le solde de crédits de l'utilisateur connecté
+ * Retourne le solde de crédits et le quota gratuit de l'utilisateur
  */
 export async function GET(request: NextRequest) {
 	const supabase = await createClient();
@@ -15,26 +17,53 @@ export async function GET(request: NextRequest) {
 	}
 	
 	try {
-		const { data, error } = await supabase
+		// 1. Récupérer les crédits achetés
+		const { data: credits, error: creditsError } = await supabase
 			.from("user_credits")
 			.select("balance, total_purchased, total_consumed, updated_at")
 			.eq("user_id", user.id)
-			.single();
+			.maybeSingle();
 		
-		if (error) {
-			// Si pas de ligne, retourner 0 (l'utilisateur n'a jamais acheté)
-			if (error.code === "PGRST116") {
-				return NextResponse.json({
-					balance: 0,
-					total_purchased: 0,
-					total_consumed: 0,
-					updated_at: null,
-				});
-			}
-			throw error;
-		}
+		// 2. Vérifier si l'utilisateur a BYOK
+		const { data: byokKey } = await supabase
+			.from("user_ai_keys")
+			.select("id")
+			.eq("user_id", user.id)
+			.maybeSingle();
 		
-		return NextResponse.json(data);
+		// 3. Calculer le quota gratuit utilisé aujourd'hui
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		
+		const { count: dailyUsage, error: usageError } = await supabase
+			.from("usage_logs")
+			.select("*", { count: "exact", head: true })
+			.eq("user_id", user.id)
+			.eq("action_type", "QUIZ")
+			.gte("created_at", today.toISOString());
+		
+		const purchasedBalance = credits?.balance ?? 0;
+		const freeUsed = dailyUsage ?? 0;
+		const freeRemaining = Math.max(0, DAILY_FREE_QUOTA - freeUsed);
+		
+		return NextResponse.json({
+			// Crédits achetés
+			balance: purchasedBalance,
+			total_purchased: credits?.total_purchased ?? 0,
+			total_consumed: credits?.total_consumed ?? 0,
+			updated_at: credits?.updated_at ?? null,
+			
+			// Quota gratuit
+			free_quota: DAILY_FREE_QUOTA,
+			free_used: freeUsed,
+			free_remaining: freeRemaining,
+			
+			// BYOK status
+			has_byok: !!byokKey,
+			
+			// Total utilisable maintenant
+			total_available: byokKey ? -1 : (purchasedBalance + freeRemaining),
+		});
 	} catch (error) {
 		console.error("Error fetching credits:", error);
 		return NextResponse.json(
