@@ -149,8 +149,8 @@ export function DashboardContent({
 									/>
 
 									{/* Mobile Menu Button (Top Right) - Visible only on mobile */}
-									<div 
-										className="absolute top-2 right-2 md:hidden z-20" 
+									<div
+										className="absolute top-2 right-2 md:hidden z-20"
 										onClick={(e) => {
 											e.preventDefault();
 											e.stopPropagation();
@@ -216,34 +216,34 @@ export function DashboardContent({
 												<span>{noteCount === 1 ? "note" : "notes"}</span>
 											</div>
 
-							{/* Actions - Desktop only (hover) */}
-													<div className="hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-														<Button
-															size="icon"
-															variant="ghost"
-															className="h-8 w-8 cursor-pointer"
-															onClick={(e) => {
-																e.preventDefault();
-																setEditingCategory(category);
-																setIsDialogOpen(true);
-															}}
-														>
-															<Pencil className="h-4 w-4" />
-														</Button>
-														<Button
-															size="icon"
-															variant="ghost"
-															className="h-8 w-8 text-destructive cursor-pointer hover:text-destructive"
-															onClick={(e) => {
-																e.preventDefault();
-																handleDelete(category.id);
-															}}
-														>
-															<Trash2 className="h-4 w-4" />
-														</Button>
-													</div>
-													{/* Mobile: menu button is positioned at top right of card */}
+											{/* Actions - Desktop only (hover) */}
+											<div className="hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+												<Button
+													size="icon"
+													variant="ghost"
+													className="h-8 w-8 cursor-pointer"
+													onClick={(e) => {
+														e.preventDefault();
+														setEditingCategory(category);
+														setIsDialogOpen(true);
+													}}
+												>
+													<Pencil className="h-4 w-4" />
+												</Button>
+												<Button
+													size="icon"
+													variant="ghost"
+													className="h-8 w-8 text-destructive cursor-pointer hover:text-destructive"
+													onClick={(e) => {
+														e.preventDefault();
+														handleDelete(category.id);
+													}}
+												>
+													<Trash2 className="h-4 w-4" />
+												</Button>
 											</div>
+											{/* Mobile: menu button is positioned at top right of card */}
+										</div>
 									</div>
 								</div>
 							</Link>

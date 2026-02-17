@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { decryptOpenRouterKey } from "@/lib/security/byok-crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasCredits, consumeCredit, getCreditBalance } from "@/lib/credits";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -34,7 +35,8 @@ type OpenRouterPublicErrorCode =
 	| "rate_limit_exceeded"
 	| "platform_budget_exhausted"
 	| "byok_or_upgrade_required"
-	| "ALL_MODELS_FAILED";
+	| "ALL_MODELS_FAILED"
+	| "credits_exhausted";
 
 type KeySource = "platform" | "byok";
 
