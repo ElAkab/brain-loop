@@ -66,7 +66,7 @@ export function DashboardContent({
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="sm:text-3xl font-bold tracking-tight">
+					<h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
 						Your Categories
 					</h1>
 					<p className="text-sm text-muted-foreground mt-1">
@@ -148,17 +148,26 @@ export function DashboardContent({
 										style={{ backgroundColor: category.color }}
 									/>
 
-									{/* Mobile Menu Button (Top Right) */}
-									<div className="absolute top-3 right-3 sm:hidden" onClick={(e) => e.preventDefault()}>
+									{/* Mobile Menu Button (Top Right) - Visible only on mobile */}
+									<div 
+										className="absolute top-2 right-2 sm:hidden z-20" 
+										onClick={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+										}}
+									>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button
 													size="icon"
 													variant="ghost"
-													className="h-8 w-8 cursor-pointer"
-													onClick={(e) => e.stopPropagation()}
+													className="h-9 w-9 cursor-pointer hover:bg-accent"
+													onClick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+													}}
 												>
-													<MoreVertical className="h-4 w-4" />
+													<MoreVertical className="h-5 w-5" />
 												</Button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" className="w-40">
@@ -207,73 +216,34 @@ export function DashboardContent({
 												<span>{noteCount === 1 ? "note" : "notes"}</span>
 											</div>
 
-							{/* Actions - Desktop (hover) */}
-												<div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-													<Button
-														size="icon"
-														variant="ghost"
-														className="h-8 w-8 cursor-pointer"
-														onClick={(e) => {
-															e.preventDefault();
-
-															setEditingCategory(category);
-															setIsDialogOpen(true);
-														}}
-													>
-														<Pencil className="h-4 w-4" />
-													</Button>
-													<Button
-														size="icon"
-														variant="ghost"
-														className="h-8 w-8 text-destructive cursor-pointer hover:text-destructive"
-														onClick={(e) => {
-															e.preventDefault();
-															handleDelete(category.id);
-														}}
-													>
-														<Trash2 className="h-4 w-4" />
-													</Button>
-												</div>
-
-												{/* Actions - Mobile (dropdown) */}
-												<div className="sm:hidden" onClick={(e) => e.preventDefault()}>
-														<DropdownMenu>
-															<DropdownMenuTrigger asChild>
-																<Button
-																	size="icon"
-																	variant="ghost"
-																	className="h-8 w-8 cursor-pointer"
-																	onClick={(e) => e.stopPropagation()}
-																>
-																	<MoreVertical className="h-4 w-4" />
-																</Button>
-															</DropdownMenuTrigger>
-															<DropdownMenuContent align="end" className="w-40">
-																<DropdownMenuItem
-																	className="cursor-pointer"
-																	onClick={(e) => {
-																		e.stopPropagation();
-																		setEditingCategory(category);
-																		setIsDialogOpen(true);
-																	}}
-																>
-																	<Pencil className="mr-2 h-4 w-4" />
-																	Edit
-																</DropdownMenuItem>
-																<DropdownMenuItem
-																	className="cursor-pointer text-destructive focus:text-destructive"
-																	onClick={(e) => {
-																		e.stopPropagation();
-																		handleDelete(category.id);
-																	}}
-																>
-																	<Trash2 className="mr-2 h-4 w-4" />
-																	Delete
-																</DropdownMenuItem>
-															</DropdownMenuContent>
-														</DropdownMenu>
+							{/* Actions - Desktop only (hover) */}
+													<div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button
+															size="icon"
+															variant="ghost"
+															className="h-8 w-8 cursor-pointer"
+															onClick={(e) => {
+																e.preventDefault();
+																setEditingCategory(category);
+																setIsDialogOpen(true);
+															}}
+														>
+															<Pencil className="h-4 w-4" />
+														</Button>
+														<Button
+															size="icon"
+															variant="ghost"
+															className="h-8 w-8 text-destructive cursor-pointer hover:text-destructive"
+															onClick={(e) => {
+																e.preventDefault();
+																handleDelete(category.id);
+															}}
+														>
+															<Trash2 className="h-4 w-4" />
+														</Button>
 													</div>
-										</div>
+													{/* Mobile: menu button is positioned at top right of card */}
+											</div>
 									</div>
 								</div>
 							</Link>
