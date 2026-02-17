@@ -10,7 +10,7 @@
  * - Les attaquants ne peuvent pas cartographier l'infrastructure via les erreurs
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // Codes d'erreur publics (exposés au client)
 export type PublicErrorCode =
