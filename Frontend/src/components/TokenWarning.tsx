@@ -69,7 +69,7 @@ const ERROR_MESSAGES = {
 export function TokenWarning({
 	errorType = "quota_exhausted",
 	customMessage,
-	premiumUrl = "/pricing",
+	premiumUrl = "/payment",
 	byokUrl = "/settings?section=ai-key",
 	onRetryLater,
 	onOpenApiKeySettings,
