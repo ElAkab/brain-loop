@@ -182,7 +182,7 @@ ${previousInsightsBlock}
 **Guidelines for the chat response:**
 - If this is the first message: ask ONE relevant, open-ended question that tests understanding across the selected notes
 - Help the student connect ideas between notes (concepts, themes, contrasts)
-- Respond in the same language as the student's last message
+- Respond in the language of the combined note content (detect it). If the notes are primarily in French, respond in French. If in English, respond in English. Only switch if the student explicitly uses a different language.
 - Use Markdown: **bold**, bullets where helpful
 - If the student answered, follow this structure:
   1. Start with: "Correct ✅" / "Almost 🤏" / "Incorrect ❌"

@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse, NextRequest } from 'next/server';
 
 export async function GET(req: NextRequest) {
+  const supabase = await createClient(req);
+
   try {
-    const supabase = await createClient(req);
     const searchParams = req.nextUrl.searchParams;
     const rating = searchParams.get('rating');
 
@@ -35,17 +36,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient(req);
-  
-  // Get user session
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    console.error('Auth error in feedback:', authError);
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const supabase = await createClient(req);
+    
+    // Get user session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Auth error in feedback:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { rating, comment } = body;
 
@@ -53,9 +54,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Rating is required' }, { status: 400 });
     }
 
-    // Ensure user_id is passed correctly. The table expects UUID.
-    // user.id is string (UUID format) from Supabase Auth.
-    
     const { data, error } = await supabase
       .from('feedback')
       .insert({
@@ -74,6 +72,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err: any) {
     console.error('Feedback API Error:', err);
-    return NextResponse.json({ error: 'Invalid request: ' + err.message }, { status: 400 });
+    return NextResponse.json({ error: 'Internal Server Error: ' + (err.message || 'Unknown') }, { status: 500 });
   }
 }
