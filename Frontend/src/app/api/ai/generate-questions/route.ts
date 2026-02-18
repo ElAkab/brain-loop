@@ -53,6 +53,15 @@ export async function POST(request: NextRequest) {
 
 		const { noteId, messages } = await request.json();
 
+		// Check if this is the first message of a session
+		const isFirstMessage = !messages || messages.length === 0;
+
+		// Only consume credits on first message of session
+		if (!isFirstMessage) {
+			// Subsequent messages in same session don't consume credits
+			console.log("[Session] Subsequent message, skipping credit consumption");
+		}
+
 		if (!noteId) {
 			return NextResponse.json(
 				{ error: "Note ID is required" },
@@ -189,14 +198,11 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			);
 		}
 
-		// Step 4: Consume credit ONLY after successful OpenRouter call
-		// (except for BYOK users who never consume credits)
-		if (creditCheck.source !== "byok") {
+		// Step 4: Consume credit ONLY on first message of session
+		if (isFirstMessage && creditCheck.source !== "byok") {
 			const consumptionResult = await consumeCredit(user.id, creditCheck.canUsePremium);
 			if (!consumptionResult.success) {
-				console.error("Failed to consume credit after successful AI call:", consumptionResult.message);
-				// Don't fail the request, just log the error
-				// The user got their quiz, we'll track this discrepancy
+				console.error("Failed to consume credit:", consumptionResult.message);
 			}
 		}
 

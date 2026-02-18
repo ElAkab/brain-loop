@@ -51,7 +51,6 @@ export function QuestionGenerator({
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [input, setInput] = useState("");
 	const [loading, setLoading] = useState(false);
-	const [streamingContent, setStreamingContent] = useState("");
 	const [currentModel, setCurrentModel] = useState<string>("unknown");
 	const [currentKeySource, setCurrentKeySource] = useState<string>("unknown");
 	const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -97,7 +96,7 @@ export function QuestionGenerator({
 
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages, streamingContent]);
+	}, [messages]);
 
 	// Support controlled `open` prop
 	useEffect(() => {
@@ -196,31 +195,54 @@ export function QuestionGenerator({
 			await readSSEStream(response, {
 				onDelta: (content) => {
 					accumulatedContent += content;
-					setStreamingContent(accumulatedContent);
+
+					// Update the last assistant message or add new one
+					setMessages((prev) => {
+						const baseMessages = updatedMessages || prev;
+						const lastMessage = baseMessages[baseMessages.length - 1];
+
+						// If last message is from assistant, replace it
+						if (lastMessage?.role === "assistant") {
+							return [
+								...baseMessages.slice(0, -1),
+								{ role: "assistant", content: accumulatedContent },
+							];
+						}
+
+						// Otherwise add new assistant message
+						return [...baseMessages, { role: "assistant", content: accumulatedContent }];
+					});
 				},
 				onMetadata: (data) => {
 					metadata = data;
 				},
 				onDone: () => {
 					if (!accumulatedContent.trim()) {
-						setStreamingContent("");
 						setErrorState({
 							type: "generic",
 							message: "Empty response received from the AI model.",
 						});
+						setLoading(false);
 						return;
 					}
 
-					const assistantMessage: Message = {
-						role: "assistant",
-						content: accumulatedContent,
-					};
-					setMessages((prev) => [
-						...(updatedMessages || prev),
-						assistantMessage,
-					]);
-					setStreamingContent("");
+					// Final update with complete content
+					setMessages((prev) => {
+						const baseMessages = updatedMessages || prev;
+						const lastMessage = baseMessages[baseMessages.length - 1];
+
+						if (lastMessage?.role === "assistant") {
+							return [
+								...baseMessages.slice(0, -1),
+								{ role: "assistant", content: accumulatedContent },
+							];
+						}
+
+						return [...baseMessages, { role: "assistant", content: accumulatedContent }];
+					});
+
 					(window as any).__lastAIFeedback = metadata;
+					setLoading(false);
 				},
 			});
 		} catch (error) {
@@ -229,6 +251,7 @@ export function QuestionGenerator({
 				type: "generic",
 				message: "Streaming failed. Please try again.",
 			});
+			setLoading(false);
 		}
 	};
 
@@ -240,7 +263,6 @@ export function QuestionGenerator({
 		setOpen(true);
 		setMessages([]);
 		setLoading(true);
-		setStreamingContent("");
 		setErrorState(null);
 
 		try {
@@ -331,7 +353,6 @@ export function QuestionGenerator({
 				type: "generic",
 				message: "Failed to start conversation.",
 			});
-		} finally {
 			setLoading(false);
 		}
 	};
@@ -344,7 +365,6 @@ export function QuestionGenerator({
 		setMessages(updatedMessages);
 		setInput("");
 		setLoading(true);
-		setStreamingContent("");
 		setErrorState(null);
 
 		try {
@@ -401,7 +421,6 @@ export function QuestionGenerator({
 				type: "generic",
 				message: "Failed to send message.",
 			});
-		} finally {
 			setLoading(false);
 		}
 	};
@@ -444,7 +463,10 @@ export function QuestionGenerator({
 					if (open === undefined) setIsOpen(val);
 				}}
 			>
-				<DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
+				<DialogContent
+				className="sm:max-w-[700px] max-h-[85vh] flex flex-col"
+				suppressHydrationWarning
+			>
 					<DialogHeader>
 						<DialogTitle>AI Study Session</DialogTitle>
 					</DialogHeader>
@@ -486,20 +508,13 @@ export function QuestionGenerator({
 										</div>
 									</div>
 								))}
-								{streamingContent && (
-									<div className="flex justify-start">
-										<div className="bg-muted text-foreground px-4 py-3 rounded-lg max-w-[85%]">
-											<Markdown content={streamingContent} />
-										</div>
+							{loading && messages.length === 0 && (
+								<div className="flex justify-start">
+									<div className="bg-muted text-foreground px-4 py-3 rounded-lg">
+										<p className="text-sm">Starting...</p>
 									</div>
-								)}
-								{loading && !streamingContent && (
-									<div className="flex justify-start">
-										<div className="bg-muted text-foreground px-4 py-3 rounded-lg">
-											<p className="text-sm">Thinking...</p>
-										</div>
-									</div>
-								)}
+								</div>
+							)}
 
 								{/* Show TokenWarning when not loading and there is no response (empty or interrupted) */}
 								{(() => {
@@ -514,7 +529,6 @@ export function QuestionGenerator({
 										!loading &&
 										!isBlockingError &&
 										errorState &&
-										!streamingContent &&
 										noAssistantResponse
 									) {
 										return (

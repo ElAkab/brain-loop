@@ -50,6 +50,20 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
+		// Check credits availability
+		const { checkCredits, consumeCredit } = await import("@/lib/credits");
+		const creditCheck = await checkCredits(user.id);
+		if (!creditCheck.hasCredits) {
+			return NextResponse.json(
+				{
+					error: "Insufficient credits",
+					code: "credits_exhausted",
+					message: "You don't have enough credits. Buy more Study Questions or use your own OpenRouter key.",
+				},
+				{ status: 403 },
+			);
+		}
+
 		const { noteIds, messages } = await request.json();
 
 		if (!noteIds || !Array.isArray(noteIds) || noteIds.length === 0) {
@@ -222,6 +236,14 @@ ${previousInsightsBlock}
 				},
 				{ status: aiResult.status },
 			);
+		}
+
+		// Consume credit for the session
+		if (creditCheck.source !== "byok") {
+			const consumptionResult = await consumeCredit(user.id, creditCheck.canUsePremium);
+			if (!consumptionResult.success) {
+				console.error("Failed to consume credit:", consumptionResult.message);
+			}
 		}
 
 		return streamOpenRouterResponse(
