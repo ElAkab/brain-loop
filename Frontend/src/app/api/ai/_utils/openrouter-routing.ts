@@ -6,18 +6,17 @@ import { decryptOpenRouterKey } from "@/lib/security/byok-crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkCredits, canUsePremiumModels } from "@/lib/credits";
 
-// Premium models (Pro subscribers and credit users)
-const PREMIUM_MODELS = [
-	"openai/gpt-4o-mini:paid",
-	"mistralai/mistral-7b-instruct:paid",
+// Default models (used by ALL users - renamed from PREMIUM_MODELS)
+const DEFAULT_MODELS = [
+	"openai/gpt-4o-mini",
+	"mistralai/mistral-7b-instruct",
 ];
 
-// Fallback models (Free tier)
+// Fallback models (Free tier) - UPDATED with valid model IDs
 const FALLBACK_MODELS = [
 	"meta-llama/llama-3.3-70b-instruct:free",
-	"qwen/qwen-3-235b-a22b:free",
-	"mistralai/mistral-small-3.1-24b:free",
-	"google/gemma-3-4b-instruct:free",
+	"qwen/qwen-2.5-72b-instruct:free",
+	"google/gemma-2-9b-it:free",
 ];
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
@@ -376,16 +375,12 @@ export async function routeOpenRouterRequest(
 	
 	if (byokState.apiKey) {
 		// BYOK users can use any model
-		modelsToTry = [...PREMIUM_MODELS, ...FALLBACK_MODELS];
-		usingPremiumModels = true;
-	} else if (canUsePremium && preferPremium) {
-		// Premium users: try premium first, then fallback
-		modelsToTry = [...PREMIUM_MODELS, ...FALLBACK_MODELS];
+		modelsToTry = [...DEFAULT_MODELS, ...FALLBACK_MODELS];
 		usingPremiumModels = true;
 	} else {
-		// Free users: only fallback models
-		modelsToTry = [...FALLBACK_MODELS];
-		usingPremiumModels = false;
+		// ALL users (free and premium) try DEFAULT_MODELS first, then FALLBACK_MODELS
+		modelsToTry = [...DEFAULT_MODELS, ...FALLBACK_MODELS];
+		usingPremiumModels = canUsePremium;
 	}
 
 	console.log("[OpenRouter] Models to try:", modelsToTry);
@@ -395,13 +390,10 @@ export async function routeOpenRouterRequest(
 
 	for (const keyCandidate of keyCandidates) {
 		for (const model of modelsToTry) {
-			const isPremiumModel = PREMIUM_MODELS.includes(model);
+			const isPremiumModel = DEFAULT_MODELS.includes(model);
 			
-			// Skip premium models if user doesn't have access
-			if (isPremiumModel && !byokState.apiKey && !canUsePremium) {
-				console.log(`[OpenRouter] Skipping premium model ${model} - no access`);
-				continue;
-			}
+			// Note: All users (free and premium) now have access to DEFAULT_MODELS
+			// Premium users get priority through rate limits, but model access is the same
 
 			console.log(`[OpenRouter] Trying ${model} with ${keyCandidate.source} key`);
 			

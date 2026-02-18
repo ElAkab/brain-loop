@@ -112,9 +112,8 @@ export function TokenWarning({
 
 	if (variant === "inline") {
 		return (
-			<div className="flex flex-col gap-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-				{/* Header avec icône et titre */}
-				<div className="flex items-start gap-3">
+			<div className="w-full p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+				<div className="flex items-start gap-3 mb-4">
 					<Icon className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
 					<div className="flex-1 min-w-0">
 						<p className="text-sm font-medium text-yellow-500">
@@ -126,8 +125,7 @@ export function TokenWarning({
 					</div>
 				</div>
 				
-				{/* Boutons en grille responsive */}
-				<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+				<div className="grid grid-cols-3 gap-2">
 					<Button
 						variant="outline"
 						size="sm"
@@ -136,11 +134,13 @@ export function TokenWarning({
 						className="w-full"
 					>
 						{isRetrying ? (
-							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							<Loader2 className="h-4 w-4 animate-spin" />
 						) : (
-							<Clock className="h-4 w-4 mr-2" />
+							<>
+								<Clock className="h-4 w-4 mr-1 hidden sm:inline" />
+								Retry
+							</>
 						)}
-						Retry
 					</Button>
 					<Button
 						size="sm"
@@ -149,11 +149,14 @@ export function TokenWarning({
 						className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
 					>
 						{isNavigating === "premium" ? (
-							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							<Loader2 className="h-4 w-4 animate-spin" />
 						) : (
-							<Crown className="h-4 w-4 mr-2" />
+							<>
+								<Crown className="h-4 w-4 mr-1 hidden sm:inline" />
+								<span className="hidden sm:inline">Premium</span>
+								<span className="sm:hidden">Pro</span>
+							</>
 						)}
-						Premium
 					</Button>
 					<Button
 						size="sm"
@@ -163,11 +166,13 @@ export function TokenWarning({
 						className="w-full"
 					>
 						{isNavigating === "apikey" ? (
-							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							<Loader2 className="h-4 w-4 animate-spin" />
 						) : (
-							<KeyRound className="h-4 w-4 mr-2" />
+							<>
+								<KeyRound className="h-4 w-4 mr-1 hidden sm:inline" />
+								Key
+							</>
 						)}
-						API Key
 					</Button>
 				</div>
 			</div>
@@ -175,7 +180,7 @@ export function TokenWarning({
 	}
 
 	return (
-		<Card className="w-full max-w-md mx-auto border-yellow-500/20 bg-yellow-500/5">
+		<Card className="w-full border-yellow-500/20 bg-yellow-500/5">
 			<CardHeader className="text-center pb-2">
 				<div className="mx-auto w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mb-4">
 					<Icon className="h-6 w-6 text-yellow-500" />
@@ -198,7 +203,7 @@ export function TokenWarning({
 				</div>
 			</CardContent>
 
-			<CardFooter className="flex flex-col sm:flex-row gap-3 pt-0">
+			<CardFooter className="grid grid-cols-3 gap-3 pt-0">
 				<Button
 					variant="outline"
 					className="w-full"
@@ -206,11 +211,13 @@ export function TokenWarning({
 					disabled={isRetrying}
 				>
 					{isRetrying ? (
-						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						<Loader2 className="h-4 w-4 animate-spin" />
 					) : (
-						<Clock className="h-4 w-4 mr-2" />
+						<>
+							<Clock className="h-4 w-4 mr-1 hidden sm:inline" />
+							Retry
+						</>
 					)}
-					Retry
 				</Button>
 				<Button
 					className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
@@ -218,11 +225,14 @@ export function TokenWarning({
 					disabled={isNavigating === "premium"}
 				>
 					{isNavigating === "premium" ? (
-						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						<Loader2 className="h-4 w-4 animate-spin" />
 					) : (
-						<Crown className="h-4 w-4 mr-2" />
+						<>
+							<Crown className="h-4 w-4 mr-1 hidden sm:inline" />
+							<span className="hidden sm:inline">Premium</span>
+							<span className="sm:hidden">Pro</span>
+						</>
 					)}
-					Premium
 				</Button>
 				<Button
 					variant="secondary"
@@ -231,11 +241,13 @@ export function TokenWarning({
 					disabled={isNavigating === "apikey"}
 				>
 					{isNavigating === "apikey" ? (
-						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						<Loader2 className="h-4 w-4 animate-spin" />
 					) : (
-						<KeyRound className="h-4 w-4 mr-2" />
+						<>
+							<KeyRound className="h-4 w-4 mr-1 hidden sm:inline" />
+							Key
+						</>
 					)}
-					API Key
 				</Button>
 			</CardFooter>
 		</Card>
