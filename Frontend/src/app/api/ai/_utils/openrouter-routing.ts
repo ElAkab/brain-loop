@@ -118,7 +118,7 @@ function readStringValue(record: Record<string, unknown>, key: string): string {
 	return "";
 }
 
-function resolvePlatformKey(): PlatformKeyResolution {
+function resolvePlatformKey(): PlatformKeyResolution & { keyLabel: string } {
 	const generic = process.env.OPENROUTER_API_KEY;
 	const dev = process.env.OPENROUTER_DEV_API_KEY;
 	const prod = process.env.OPENROUTER_PROD_API_KEY;
@@ -127,14 +127,40 @@ function resolvePlatformKey(): PlatformKeyResolution {
 	if (nodeEnv === "production") {
 		const key = prod || generic || null;
 		if (!key || (dev && key === dev)) {
-			return { key: null, misconfigured: true };
+			return { key: null, misconfigured: true, keyLabel: "none" };
 		}
-		return { key, misconfigured: false };
+		return { key, misconfigured: false, keyLabel: "PROD" };
 	}
 
+	// Development: prefer DEV key, fallback to PROD or generic
 	const key = dev || prod || generic || null;
-	if (!key) return { key: null, misconfigured: true };
-	return { key, misconfigured: false };
+	const keyLabel = dev ? "DEV" : prod ? "PROD" : generic ? "GENERIC" : "none";
+	if (!key) return { key: null, misconfigured: true, keyLabel };
+	return { key, misconfigured: false, keyLabel };
+}
+
+async function validateOpenRouterApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+	try {
+		// Make a lightweight request to validate the API key
+		const response = await fetch(`${OPENROUTER_BASE_URL}/models`, {
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+			},
+		});
+
+		if (response.status === 401) {
+			return { valid: false, error: "Invalid API key - authentication failed" };
+		}
+
+		if (!response.ok) {
+			return { valid: false, error: `API validation failed: ${response.status}` };
+		}
+
+		return { valid: true };
+	} catch (error) {
+		return { valid: false, error: `Network error during validation: ${error}` };
+	}
 }
 
 function classifyOpenRouterError(errorData: unknown): OpenRouterModelErrorCode | null {
@@ -287,27 +313,51 @@ export async function routeOpenRouterRequest(
 	const platformResolution = resolvePlatformKey();
 	const byokState = await getUserByokState(options.supabase, options.userId);
 	
-	// Check if user has premium access
+	// Check if user has premium access and actual credits
 	const canUsePremium = await canUsePremiumModels(options.userId);
+	const creditsStatus = await checkCredits(options.userId);
+	const hasAnyCredits = creditsStatus.hasCredits;
 	const preferPremium = options.preferPremium !== false;
 	
 	console.log("[OpenRouter Routing]", {
 		userId: options.userId,
 		canUsePremium,
+		hasAnyCredits,
+		freeCredits: creditsStatus.freeRemaining,
+		premiumCredits: creditsStatus.premiumRemaining,
 		preferPremium,
 		hasByok: !!byokState.apiKey,
 		hasPlatformKey: !!platformResolution.key,
+		platformKeyLabel: platformResolution.keyLabel,
 	});
+
+	// Validate platform key if we're going to use it
+	if (platformResolution.key && !byokState.apiKey) {
+		console.log(`[OpenRouter] Validating platform key (${platformResolution.keyLabel})...`);
+		const validation = await validateOpenRouterApiKey(platformResolution.key);
+		if (!validation.valid) {
+			console.error(`[OpenRouter] Platform key (${platformResolution.keyLabel}) validation failed:`, validation.error);
+			return {
+				ok: false,
+				status: 503,
+				code: "ALL_MODELS_FAILED",
+				error: `OpenRouter API key configuration error (${platformResolution.keyLabel}): ${validation.error}. Please contact support.`,
+			};
+		}
+		console.log(`[OpenRouter] Platform key (${platformResolution.keyLabel}) is valid`);
+	}
 
 	// Build key candidates
 	const keyCandidates: KeyCandidate[] = [];
 	
 	if (platformResolution.key) {
 		keyCandidates.push({ source: "platform", apiKey: platformResolution.key });
+		console.log(`[OpenRouter] Using platform key: ${platformResolution.keyLabel}`);
 	}
 	
 	if (byokState.apiKey) {
 		keyCandidates.push({ source: "byok", apiKey: byokState.apiKey });
+		console.log("[OpenRouter] Using BYOK key");
 	}
 
 	if (keyCandidates.length === 0) {
@@ -426,9 +476,10 @@ export async function routeOpenRouterRequest(
 
 	// All models failed - determine appropriate error
 	console.error("[OpenRouter] All models failed:", lastError);
+	console.log("[OpenRouter] Error decision - hasAnyCredits:", hasAnyCredits, "canUsePremium:", canUsePremium, "hasByok:", !!byokState.apiKey);
 
-	// If user has premium access but models failed, it's a service issue
-	if (canUsePremium || byokState.apiKey) {
+	// If user has any credits (free or paid) but models still failed, it's a service issue
+	if (hasAnyCredits || byokState.apiKey) {
 		return {
 			ok: false,
 			status: 503,
@@ -438,12 +489,12 @@ export async function routeOpenRouterRequest(
 		};
 	}
 
-	// User doesn't have premium - suggest upgrading
+	// User has NO credits at all - suggest upgrading or buying credits
 	return {
 		ok: false,
 		status: 403,
 		code: "credits_exhausted",
-		error: "Premium credits exhausted. Upgrade to Pro or buy credits to continue.",
+		error: "Credits exhausted. Upgrade to Pro or buy credits to continue.",
 		details: lastError,
 	};
 }
