@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Clock, Crown, KeyRound } from "lucide-react";
+import { AlertTriangle, Clock, Crown, KeyRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -76,27 +77,36 @@ export function TokenWarning({
 	variant = "card",
 }: TokenWarningProps) {
 	const router = useRouter();
+	const [isRetrying, setIsRetrying] = useState(false);
+	const [isNavigating, setIsNavigating] = useState<string | null>(null);
+	
 	const errorConfig = ERROR_MESSAGES[errorType];
 	const Icon = errorConfig.icon;
 
-	const handleRetryLater = () => {
-		if (onRetryLater) {
-			onRetryLater();
-		} else {
-			window.location.reload();
+	const handleRetryLater = async () => {
+		setIsRetrying(true);
+		try {
+			if (onRetryLater) {
+				await onRetryLater();
+			} else {
+				window.location.reload();
+			}
+		} finally {
+			setIsRetrying(false);
 		}
 	};
 
-	const handleUpgradeToPremium = () => {
+	const handleUpgradeToPremium = async () => {
+		setIsNavigating("premium");
 		router.push(premiumUrl);
 	};
 
-	const handleOpenApiKeySettings = () => {
+	const handleOpenApiKeySettings = async () => {
+		setIsNavigating("apikey");
 		if (onOpenApiKeySettings) {
 			onOpenApiKeySettings();
 			return;
 		}
-
 		router.push(byokUrl);
 	};
 
@@ -124,26 +134,41 @@ export function TokenWarning({
 						variant="outline"
 						size="sm"
 						onClick={handleRetryLater}
-						className="w-full sm:w-auto dark:hover:bg-gray-700/30 dark:hover:text-white transition cursor-pointer"
+						disabled={isRetrying}
+						className="w-full sm:w-auto"
 					>
-						<Clock className="h-4 w-4 mr-2 cursor-pointer" />
+						{isRetrying ? (
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						) : (
+							<Clock className="h-4 w-4 mr-2" />
+						)}
 						Retry
 					</Button>
 					<Button
 						size="sm"
 						onClick={handleUpgradeToPremium}
-						className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition cursor-pointer"
+						disabled={isNavigating === "premium"}
+						className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
 					>
-						<Crown className="h-4 w-4 mr-2 cursor-pointer" />
+						{isNavigating === "premium" ? (
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						) : (
+							<Crown className="h-4 w-4 mr-2" />
+						)}
 						Premium
 					</Button>
 					<Button
 						size="sm"
 						variant="secondary"
 						onClick={handleOpenApiKeySettings}
-						className="w-full sm:w-auto cursor-pointer"
+						disabled={isNavigating === "apikey"}
+						className="w-full sm:w-auto"
 					>
-						<KeyRound className="h-4 w-4 mr-2 cursor-pointer" />
+						{isNavigating === "apikey" ? (
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+						) : (
+							<KeyRound className="h-4 w-4 mr-2" />
+						)}
 						Key
 					</Button>
 				</div>
@@ -178,25 +203,40 @@ export function TokenWarning({
 			<CardFooter className="flex flex-col sm:flex-row gap-3 pt-0">
 				<Button
 					variant="outline"
-					className="w-full cursor-pointer dark:hover:bg-gray-700/30 dark:hover:text-white"
+					className="w-full"
 					onClick={handleRetryLater}
+					disabled={isRetrying}
 				>
-					<Clock className="h-4 w-4 mr-2" />
+					{isRetrying ? (
+						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+					) : (
+						<Clock className="h-4 w-4 mr-2" />
+					)}
 					Retry
 				</Button>
 				<Button
-					className="w-full bg-gradient-to-r from-purple-600 to-pink-600 dark:hover:from-purple-700 dark:hover:to-pink-700 transition cursor-pointer"
+					className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
 					onClick={handleUpgradeToPremium}
+					disabled={isNavigating === "premium"}
 				>
-					<Crown className="h-4 w-4 mr-2" />
+					{isNavigating === "premium" ? (
+						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+					) : (
+						<Crown className="h-4 w-4 mr-2" />
+					)}
 					Premium
 				</Button>
 				<Button
 					variant="secondary"
-					className="w-full cursor-pointer"
+					className="w-full"
 					onClick={handleOpenApiKeySettings}
+					disabled={isNavigating === "apikey"}
 				>
-					<KeyRound className="h-4 w-4 mr-2" />
+					{isNavigating === "apikey" ? (
+						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+					) : (
+						<KeyRound className="h-4 w-4 mr-2" />
+					)}
 					API Key
 				</Button>
 			</CardFooter>

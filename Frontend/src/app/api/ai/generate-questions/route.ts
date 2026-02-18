@@ -8,7 +8,7 @@ import {
 } from "@/app/api/ai/_utils/openrouter-routing";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { hasCredits, consumeCredit, getDailyUsage } from "@/lib/credits";
+import { checkCredits, consumeCredit } from "@/lib/credits";
 
 type IncomingChatMessage = {
 	role: "user" | "assistant";
@@ -60,30 +60,16 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Vérifier les crédits (BYOK = gratuit, crédits achetés, ou quota gratuit)
-		const hasAvailableCredits = await hasCredits(user.id);
-		if (!hasAvailableCredits) {
+		// Step 1: Check credits availability (without consuming yet)
+		const creditCheck = await checkCredits(user.id);
+		if (!creditCheck.hasCredits) {
 			return NextResponse.json(
 				{
-					error: "Crédits insuffisants",
+					error: "Insufficient credits",
 					code: "credits_exhausted",
-					message: "Vous n'avez plus de crédits. Achetez des Study Questions ou utilisez votre propre clé OpenRouter.",
+					message: "You don't have enough credits. Buy more Study Questions or use your own OpenRouter key.",
 				},
 				{ status: 403 },
-			);
-		}
-
-		// Consommer un crédit (si pas BYOK)
-		const consumptionResult = await consumeCredit(user.id);
-		if (!consumptionResult.success && consumptionResult.balance !== -1) {
-			// -1 = BYOK (pas de consommation)
-			return NextResponse.json(
-				{
-					error: "Échec de la consommation de crédits",
-					code: "consumption_failed",
-					message: consumptionResult.message,
-				},
-				{ status: 500 },
 			);
 		}
 
@@ -100,7 +86,6 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Fetch last study session for this note to get previous AI feedback
-		// ONLY if we want to build upon previous sessions
 		const { data: lastSession } = await supabase
 			.from("study_sessions")
 			.select("ai_feedback")
@@ -108,7 +93,7 @@ export async function POST(request: NextRequest) {
 			.eq("user_id", user.id)
 			.order("created_at", { ascending: false })
 			.limit(1)
-			.single();
+			.maybeSingle();
 
 		let previousConclusion = "";
 		if (lastSession?.ai_feedback) {
@@ -119,8 +104,6 @@ export async function POST(request: NextRequest) {
 			} catch (e) {
 				console.warn("Failed to parse previous ai_feedback:", e);
 			}
-		} else {
-			console.log("No previous session found for this note");
 		}
 
 		// Build conversation messages
@@ -175,6 +158,7 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			...normalizeIncomingMessages(messages),
 		];
 
+		// Step 2: Call OpenRouter FIRST (before consuming credits)
 		const aiResult = await routeOpenRouterRequest({
 			supabase,
 			userId: user.id,
@@ -182,19 +166,38 @@ ${previousConclusion ? `\n\nPrevious Session Insight (use ONLY as context, do NO
 			temperature: 0.7,
 			stream: true,
 			actionType: "QUIZ",
+			preferPremium: creditCheck.canUsePremium,
 		});
 
+		// Step 3: If OpenRouter fails, return error WITHOUT consuming credit
 		if (!aiResult.ok) {
+			console.error("OpenRouter request failed:", {
+				code: aiResult.code,
+				error: aiResult.error,
+				userId: user.id,
+			});
+			
 			return NextResponse.json(
 				{
 					error: aiResult.error,
 					code: aiResult.code,
-					details: aiResult.details,
 				},
 				{ status: aiResult.status },
 			);
 		}
 
+		// Step 4: Consume credit ONLY after successful OpenRouter call
+		// (except for BYOK users who never consume credits)
+		if (creditCheck.source !== "byok") {
+			const consumptionResult = await consumeCredit(user.id, creditCheck.canUsePremium);
+			if (!consumptionResult.success) {
+				console.error("Failed to consume credit after successful AI call:", consumptionResult.message);
+				// Don't fail the request, just log the error
+				// The user got their quiz, we'll track this discrepancy
+			}
+		}
+
+		// Step 5: Return successful response
 		return streamOpenRouterResponse(
 			aiResult.response,
 			aiResult.model,
