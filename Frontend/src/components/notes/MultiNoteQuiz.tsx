@@ -81,7 +81,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		response: Response,
 		updatedMessages: Message[],
 	) => {
-		let aiResponse = "";
+		let accumulatedContent = "";
 		let metadata: StreamMetadata = {
 			analysis: "",
 			weaknesses: "",
@@ -93,39 +93,72 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 			
 			await readSSEStream(response, {
 				onDelta: (content) => {
-					aiResponse += content;
-					setMessages([
-						...updatedMessages,
-						{ role: "assistant", content: aiResponse },
-					]);
+					accumulatedContent += content;
+
+					// Use functional update to ensure we always have latest state
+					setMessages((prev) => {
+						const baseMessages = updatedMessages || prev;
+						const lastMessage = baseMessages[baseMessages.length - 1];
+
+						if (lastMessage?.role === "assistant") {
+							// Update existing assistant message
+							return [
+								...baseMessages.slice(0, -1),
+								{ role: "assistant", content: accumulatedContent },
+							];
+						}
+
+						// Add new assistant message
+						return [
+							...baseMessages,
+							{ role: "assistant", content: accumulatedContent },
+						];
+					});
 				},
 				onMetadata: (data) => {
 					metadata = data;
 				},
 				onDone: () => {
-					if (!aiResponse.trim()) {
+					if (!accumulatedContent.trim()) {
 						setErrorState({
 							type: "generic",
 							message: "Empty response received from the AI model.",
 						});
+						setLoading(false);
 						setIsStreaming(false);
 						return;
 					}
 
+					// Final update with complete content
+					setMessages((prev) => {
+						const baseMessages = updatedMessages || prev;
+						const lastMessage = baseMessages[baseMessages.length - 1];
+
+						if (lastMessage?.role === "assistant") {
+							return [
+								...baseMessages.slice(0, -1),
+								{ role: "assistant", content: accumulatedContent },
+							];
+						}
+
+						return [
+							...baseMessages,
+							{ role: "assistant", content: accumulatedContent },
+						];
+					});
+
 					(window as any).__lastAIFeedback = metadata;
-					setMessages([
-						...updatedMessages,
-						{ role: "assistant", content: aiResponse },
-					]);
+					setLoading(false);
 					setIsStreaming(false);
 				},
 			});
 		} catch (error) {
-			console.error("Failed to process stream:", error);
+			console.error("Stream processing error:", error);
 			setErrorState({
 				type: "generic",
 				message: "Streaming failed. Please try again.",
 			});
+			setLoading(false);
 			setIsStreaming(false);
 		}
 	};
