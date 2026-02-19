@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Coins, Plus, Infinity, Gift, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,50 +10,20 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-
-interface CreditInfo {
-	premium_balance: number;
-	monthly_credits_used: number;
-	monthly_credits_limit: number;
-	monthly_remaining: number;
-	total_premium_available: number;
-	free_quota: number;
-	free_used: number;
-	free_remaining: number;
-	subscription_tier: string;
-	subscription_status: string;
-	is_pro: boolean;
-	has_byok: boolean;
-	total_available: number;
-}
+import { useCreditsStore } from "@/lib/store/credits-store";
 
 interface CreditDisplayProps {
 	variant?: "compact" | "full";
 }
 
 export function CreditDisplay({ variant = "compact" }: CreditDisplayProps) {
-	const [info, setInfo] = useState<CreditInfo | null>(null);
-	const [loading, setLoading] = useState(true);
+	const { info, isLoading, fetchCredits } = useCreditsStore();
 	
 	useEffect(() => {
-		fetchCreditInfo();
-	}, []);
+		fetchCredits();
+	}, [fetchCredits]);
 	
-	const fetchCreditInfo = async () => {
-		try {
-			const res = await fetch("/api/credits");
-			if (res.ok) {
-				const data = await res.json();
-				setInfo(data);
-			}
-		} catch (error) {
-			console.error("Error fetching credits:", error);
-		} finally {
-			setLoading(false);
-		}
-	};
-	
-	if (loading) {
+	if (isLoading) {
 		return (
 			<Button variant="ghost" size="sm" disabled className="gap-2">
 				<Coins className="h-4 w-4" />
@@ -116,7 +86,7 @@ export function CreditDisplay({ variant = "compact" }: CreditDisplayProps) {
 	);
 }
 
-function CreditPopoverContent({ info }: { info: CreditInfo }) {
+function CreditPopoverContent({ info }: { info: NonNullable<ReturnType<typeof useCreditsStore.getState>["info"]> }) {
 	const displayValue = info.has_byok 
 		? "∞" 
 		: info.total_premium_available > 0 

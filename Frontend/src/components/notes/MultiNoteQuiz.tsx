@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { Markdown } from "@/components/ui/markdown";
 import { TokenWarning, type TokenWarningProps } from "@/components/TokenWarning";
-import { Button } from "@/components/ui/button";
 import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
 import { useFeedbackStore } from "@/lib/store/feedback-store";
+import { useCreditsStore } from "@/lib/store/credits-store";
+import { Loader2 } from "lucide-react";
 
 interface Message {
 	role: "user" | "assistant";
@@ -21,14 +22,17 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [input, setInput] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [isStreaming, setIsStreaming] = useState(false);
 	const [hasStarted, setHasStarted] = useState(false);
 	const [startTime] = useState(Date.now());
 	const [modelUsed, setModelUsed] = useState("unknown");
 	const [keySource, setKeySource] = useState("unknown");
+	const [isSaving, setIsSaving] = useState(false);
 	const [errorState, setErrorState] = useState<{
 		type: TokenWarningProps["errorType"];
 		message?: string;
 	} | null>(null);
+	const refreshCredits = useCreditsStore((state) => state.refreshCredits);
 
 	// Auto-start quiz when component mounts
 	useEffect(() => {
@@ -81,6 +85,8 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		};
 
 		try {
+			setIsStreaming(true);
+			
 			await readSSEStream(response, {
 				onDelta: (content) => {
 					aiResponse += content;
@@ -98,6 +104,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 							type: "generic",
 							message: "Empty response received from the AI model.",
 						});
+						setIsStreaming(false);
 						return;
 					}
 
@@ -106,6 +113,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 						...updatedMessages,
 						{ role: "assistant", content: aiResponse },
 					]);
+					setIsStreaming(false);
 				},
 			});
 		} catch (error) {
@@ -114,12 +122,14 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 				type: "generic",
 				message: "Streaming failed. Please try again.",
 			});
+			setIsStreaming(false);
 		}
 	};
 
 	const startQuiz = async () => {
 		setHasStarted(true);
 		setLoading(true);
+		setIsStreaming(false);
 		setErrorState(null);
 
 		try {
@@ -181,6 +191,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		setMessages(updatedMessages);
 		setInput("");
 		setLoading(true);
+		setIsStreaming(false);
 		setErrorState(null);
 
 		try {
@@ -246,13 +257,57 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		errorState?.type === "byok_or_upgrade_required" ||
 		errorState?.type === "no_models_available";
 
+	// Determine if we should show the "AI is thinking" indicator
+	const showThinkingIndicator = loading && !isStreaming && !errorState;
+
+	// Handle close with proper async save
+	const handleClose = async () => {
+		if (isSaving) return;
+
+		setIsSaving(true);
+
+		const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+		const questionsAsked = messages.filter((m) => m.role === "assistant").length;
+		const lastFeedback = (window as any).__lastAIFeedback || {};
+
+		try {
+			const firstNoteRes = await fetch(`/api/notes/${noteIds[0]}`);
+			const firstNote = await firstNoteRes.json();
+			const categoryId = firstNote?.category_id || null;
+
+			await fetch("/api/study-sessions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					noteIds,
+					categoryId,
+					sessionType: "MULTI_NOTE",
+					modelUsed: `${keySource}:${modelUsed}`,
+					conversationHistory: messages,
+					aiFeedback: JSON.stringify(lastFeedback),
+					questionsAsked,
+					durationSeconds,
+				}),
+			});
+			
+			// Refresh credits after session ends
+			refreshCredits();
+		} catch (error) {
+			console.error("Failed to save study session:", error);
+		} finally {
+			setIsSaving(false);
+			useFeedbackStore.getState().triggerFeedback();
+			onClose();
+		}
+	};
+
 	if (!hasStarted) {
 		return (
 			<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 				<div className="bg-white rounded-lg shadow-xl p-8 max-w-md">
 					<h2 className="text-2xl font-bold mb-4">Ready to Study?</h2>
 					<p className="text-gray-600 mb-6">
-						You've selected {noteIds.length} note{noteIds.length > 1 ? "s" : ""}
+						You&apos;ve selected {noteIds.length} note{noteIds.length > 1 ? "s" : ""}
 						. The AI will quiz you on the content.
 					</p>
 					<div className="flex gap-3">
@@ -297,48 +352,11 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 								AI Study Session ({noteIds.length} notes)
 							</h2>
 							<button
-								onClick={async () => {
-									// Save study session before closing
-									const durationSeconds = Math.floor(
-										(Date.now() - startTime) / 1000,
-									);
-									const questionsAsked = Math.floor(
-										messages.filter((m) => m.role === "assistant").length,
-									);
-									const lastFeedback = (window as any).__lastAIFeedback || {};
-
-									try {
-										// Fetch category_id from first note
-										const firstNoteRes = await fetch(
-											`/api/notes/${noteIds[0]}`,
-										);
-										const firstNote = await firstNoteRes.json();
-										const categoryId = firstNote?.category_id || null;
-
-										await fetch("/api/study-sessions", {
-											method: "POST",
-											headers: { "Content-Type": "application/json" },
-											body: JSON.stringify({
-												noteIds,
-												categoryId,
-												sessionType: "MULTI_NOTE",
-												modelUsed: `${keySource}:${modelUsed}`,
-												conversationHistory: messages,
-												aiFeedback: JSON.stringify(lastFeedback),
-												questionsAsked,
-												durationSeconds,
-											}),
-										});
-									} catch (error) {
-										console.error("Failed to save study session:", error);
-									}
-
-									useFeedbackStore.getState().triggerFeedback();
-									onClose();
-								}}
-								className="px-3 py-1 text-gray-600 hover:text-gray-800 cursor-pointer"
+								onClick={handleClose}
+								disabled={isSaving}
+								className="px-3 py-1 text-gray-600 hover:text-gray-800 cursor-pointer disabled:opacity-50"
 							>
-								✕ Close
+								{isSaving ? "Saving..." : "✕ Close"}
 							</button>
 						</div>
 
@@ -364,10 +382,13 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 									</div>
 								</div>
 							))}
-							{loading && (
+							
+							{/* AI Thinking Indicator */}
+							{showThinkingIndicator && (
 								<div className="flex justify-start">
-									<div className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg">
-										<p>Typing...</p>
+									<div className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg flex items-center gap-2">
+										<Loader2 className="h-4 w-4 animate-spin" />
+										<span>L&apos;IA r&eacute;fl&eacute;chit...</span>
 									</div>
 								</div>
 							)}

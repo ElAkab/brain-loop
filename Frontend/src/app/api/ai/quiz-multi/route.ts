@@ -38,40 +38,43 @@ function normalizeIncomingMessages(payload: unknown): OpenRouterMessage[] {
 	});
 }
 
-export async function POST(request: NextRequest) {
-	try {
-		const supabase = await createClient(request);
-		const {
-			data: { user },
-			error: authError,
-		} = await supabase.auth.getUser();
+	export async function POST(request: NextRequest) {
+		try {
+			const supabase = await createClient(request);
+			const {
+				data: { user },
+				error: authError,
+			} = await supabase.auth.getUser();
 
-		if (authError || !user) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-		}
+			if (authError || !user) {
+				return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-		// Check credits availability
-		const { checkCredits, consumeCredit } = await import("@/lib/credits");
-		const creditCheck = await checkCredits(user.id);
-		if (!creditCheck.hasCredits) {
-			return NextResponse.json(
-				{
-					error: "Insufficient credits",
-					code: "credits_exhausted",
-					message: "You don't have enough credits. Buy more Study Questions or use your own OpenRouter key.",
-				},
-				{ status: 403 },
-			);
-		}
+			// Check credits availability
+			const { checkCredits, consumeCredit } = await import("@/lib/credits");
+			const creditCheck = await checkCredits(user.id);
+			if (!creditCheck.hasCredits) {
+				return NextResponse.json(
+					{
+						error: "Insufficient credits",
+						code: "credits_exhausted",
+						message: "You don't have enough credits. Buy more Study Questions or use your own OpenRouter key.",
+					},
+					{ status: 403 },
+				);
+			}
 
-		const { noteIds, messages } = await request.json();
+			const { noteIds, messages } = await request.json();
 
-		if (!noteIds || !Array.isArray(noteIds) || noteIds.length === 0) {
-			return NextResponse.json(
-				{ error: "noteIds array is required" },
-				{ status: 400 },
-			);
-		}
+			// Check if this is the first message of a session
+			const isFirstMessage = !messages || messages.length === 0;
+
+			if (!noteIds || !Array.isArray(noteIds) || noteIds.length === 0) {
+				return NextResponse.json(
+					{ error: "noteIds array is required" },
+					{ status: 400 },
+				);
+			}
 
 		// Fetch all selected notes
 		const { data: notes, error: notesError } = await supabase
@@ -238,8 +241,8 @@ ${previousInsightsBlock}
 			);
 		}
 
-		// Consume credit for the session
-		if (creditCheck.source !== "byok") {
+		// Consume credit ONLY on first message of session (not on subsequent messages)
+		if (isFirstMessage && creditCheck.source !== "byok") {
 			const consumptionResult = await consumeCredit(user.id, creditCheck.canUsePremium);
 			if (!consumptionResult.success) {
 				console.error("Failed to consume credit:", consumptionResult.message);

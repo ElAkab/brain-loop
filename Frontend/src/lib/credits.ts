@@ -9,7 +9,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-const DAILY_FREE_QUOTA = 20;
+export const DAILY_FREE_QUOTA = 20;
 
 export type CreditSource = "byok" | "subscription" | "purchased" | "free_quota";
 

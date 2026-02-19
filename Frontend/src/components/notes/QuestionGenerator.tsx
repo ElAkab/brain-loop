@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -17,19 +17,11 @@ import {
 } from "@/components/TokenWarning";
 import { readSSEStream, type StreamMetadata } from "@/lib/ai/sse";
 import { useFeedbackStore } from "@/lib/store/feedback-store";
+import { useCreditsStore } from "@/lib/store/credits-store";
 
 interface Message {
 	role: "user" | "assistant";
 	content: string;
-}
-
-interface StudySession {
-	noteIds: string[];
-	categoryId?: string;
-	sessionType: "SINGLE_NOTE" | "MULTI_NOTE";
-	modelUsed: string;
-	conversationHistory: Message[];
-	questionsAsked: number;
 }
 
 interface QuestionGeneratorProps {
@@ -51,6 +43,7 @@ export function QuestionGenerator({
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [input, setInput] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [isStreaming, setIsStreaming] = useState(false);
 	const [currentModel, setCurrentModel] = useState<string>("unknown");
 	const [currentKeySource, setCurrentKeySource] = useState<string>("unknown");
 	const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -59,7 +52,11 @@ export function QuestionGenerator({
 		type: TokenWarningProps["errorType"];
 		message?: string;
 	} | null>(null);
+	const [isSaving, setIsSaving] = useState(false);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const wasOpenRef = useRef(false);
+	const hasSavedRef = useRef(false);
+	const refreshCredits = useCreditsStore((state) => state.refreshCredits);
 
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -107,74 +104,73 @@ export function QuestionGenerator({
 	useEffect(() => {
 		if (open !== undefined && open) {
 			if (!loading && messages.length === 0) {
-				// Record session start time
 				setSessionStartTime(Date.now());
-				// startConversation will set loading and begin the fetch
+				hasSavedRef.current = false;
 				startConversation().catch((e) => console.error(e));
 			}
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open]);
 
-	// Save study session when dialog closes (if there was a conversation)
+	// Track dialog open state for save-on-close
 	useEffect(() => {
-		const handleSaveSession = async () => {
-			// Only save if closing and there are messages
-			if (!isOpen && messages.length > 0) {
-				try {
-					const noteIdsToSave = noteIds || (noteId ? [noteId] : []);
-					if (noteIdsToSave.length === 0) return;
+		if (wasOpenRef.current && !isOpen) {
+			saveSession();
+		}
+		wasOpenRef.current = isOpen;
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isOpen]);
 
-					// Calculate duration
-					const durationSeconds =
-						sessionStartTime > 0
-							? Math.floor((Date.now() - sessionStartTime) / 1000)
-							: 0;
+	// Save study session when dialog closes
+	const saveSession = useCallback(async () => {
+		if (hasSavedRef.current) return;
+		if (messages.length === 0) return;
 
-					// Get structured AI feedback
-					const lastFeedback = (window as any).__lastAIFeedback || {};
-					const aiFeedback =
-						messages.length > 0 ? JSON.stringify(lastFeedback) : null;
+		const noteIdsToSave = noteIds || (noteId ? [noteId] : []);
+		if (noteIdsToSave.length === 0) return;
 
-					await fetch("/api/study-sessions", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							noteIds: noteIdsToSave,
-							categoryId,
-								sessionType:
-									noteIds && noteIds.length > 1 ? "MULTI_NOTE" : "SINGLE_NOTE",
-								modelUsed: `${currentKeySource}:${currentModel}`,
-								conversationHistory: messages,
-							aiFeedback,
-							questionsAsked: messages.filter((m) => m.role === "assistant")
-								.length,
-							durationSeconds,
-						}),
-					});
-				} catch (error) {
-					console.error("Failed to save study session:", error);
-				}
-			}
-		};
+		setIsSaving(true);
+		hasSavedRef.current = true;
 
-		handleSaveSession();
-	}, [
-		isOpen,
-		messages,
-		noteId,
-		noteIds,
-		categoryId,
-		currentModel,
-		currentKeySource,
-		sessionStartTime,
-	]);
+		const durationSeconds =
+			sessionStartTime > 0
+				? Math.floor((Date.now() - sessionStartTime) / 1000)
+				: 0;
+
+		const lastFeedback = (window as any).__lastAIFeedback || {};
+		const aiFeedback = JSON.stringify(lastFeedback);
+
+		try {
+			await fetch("/api/study-sessions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					noteIds: noteIdsToSave,
+					categoryId,
+					sessionType:
+						noteIds && noteIds.length > 1 ? "MULTI_NOTE" : "SINGLE_NOTE",
+					modelUsed: `${currentKeySource}:${currentModel}`,
+					conversationHistory: messages,
+					aiFeedback,
+					questionsAsked: messages.filter((m) => m.role === "assistant").length,
+					durationSeconds,
+				}),
+			});
+			
+			// Refresh credits after session ends
+			refreshCredits();
+		} catch (error) {
+			console.error("Failed to save study session:", error);
+			hasSavedRef.current = false;
+		} finally {
+			setIsSaving(false);
+		}
+	}, [messages, noteId, noteIds, categoryId, currentModel, currentKeySource, sessionStartTime, refreshCredits]);
 
 	const setOpen = (val: boolean) => {
 		if (onOpenChange) onOpenChange(val);
 		if (open === undefined) setIsOpen(val);
 		
-		// Trigger feedback on close
 		if (!val) {
 			useFeedbackStore.getState().triggerFeedback();
 		}
@@ -192,16 +188,16 @@ export function QuestionGenerator({
 		};
 
 		try {
+			setIsStreaming(true);
+			
 			await readSSEStream(response, {
 				onDelta: (content) => {
 					accumulatedContent += content;
 
-					// Update the last assistant message or add new one
 					setMessages((prev) => {
 						const baseMessages = updatedMessages || prev;
 						const lastMessage = baseMessages[baseMessages.length - 1];
 
-						// If last message is from assistant, replace it
 						if (lastMessage?.role === "assistant") {
 							return [
 								...baseMessages.slice(0, -1),
@@ -209,7 +205,6 @@ export function QuestionGenerator({
 							];
 						}
 
-						// Otherwise add new assistant message
 						return [...baseMessages, { role: "assistant", content: accumulatedContent }];
 					});
 				},
@@ -223,10 +218,10 @@ export function QuestionGenerator({
 							message: "Empty response received from the AI model.",
 						});
 						setLoading(false);
+						setIsStreaming(false);
 						return;
 					}
 
-					// Final update with complete content
 					setMessages((prev) => {
 						const baseMessages = updatedMessages || prev;
 						const lastMessage = baseMessages[baseMessages.length - 1];
@@ -243,6 +238,7 @@ export function QuestionGenerator({
 
 					(window as any).__lastAIFeedback = metadata;
 					setLoading(false);
+					setIsStreaming(false);
 				},
 			});
 		} catch (error) {
@@ -252,6 +248,7 @@ export function QuestionGenerator({
 				message: "Streaming failed. Please try again.",
 			});
 			setLoading(false);
+			setIsStreaming(false);
 		}
 	};
 
@@ -263,10 +260,10 @@ export function QuestionGenerator({
 		setOpen(true);
 		setMessages([]);
 		setLoading(true);
+		setIsStreaming(false);
 		setErrorState(null);
 
 		try {
-			// Fetch note data to get categoryId and previous session
 			let fetchedCategoryId: string | undefined;
 
 			if (noteId) {
@@ -277,7 +274,6 @@ export function QuestionGenerator({
 					setCategoryId(fetchedCategoryId);
 				}
 			} else if (noteIds && noteIds.length > 0) {
-				// For multi-note, get first note's category
 				const noteRes = await fetch(`/api/notes/${noteIds[0]}`);
 				if (noteRes.ok) {
 					const noteData = await noteRes.json();
@@ -306,16 +302,6 @@ export function QuestionGenerator({
 
 			console.debug("QuestionGenerator: fetch complete", res.status);
 
-			// Debugging: log headers and body availability
-			try {
-				console.debug(
-					"QuestionGenerator: response content-type",
-					res.headers.get("content-type"),
-				);
-				console.debug("QuestionGenerator: response has body", !!res.body);
-			} catch (e) {
-				console.debug("QuestionGenerator: failed to read response metadata", e);
-			}
 			if (!res.ok) {
 				let errorBody: any = null;
 				try {
@@ -336,7 +322,6 @@ export function QuestionGenerator({
 				return;
 			}
 
-			// Extract model from response headers
 			const modelUsed = res.headers.get("X-Model-Used");
 			if (modelUsed) {
 				setCurrentModel(modelUsed);
@@ -346,7 +331,7 @@ export function QuestionGenerator({
 				setCurrentKeySource(keySource);
 			}
 
-			await processStream(res);
+			await processStream(res, []);
 		} catch (error) {
 			console.error("Failed to start conversation:", error);
 			setErrorState({
@@ -365,6 +350,7 @@ export function QuestionGenerator({
 		setMessages(updatedMessages);
 		setInput("");
 		setLoading(true);
+		setIsStreaming(false);
 		setErrorState(null);
 
 		try {
@@ -431,6 +417,9 @@ export function QuestionGenerator({
 		errorState?.type === "byok_or_upgrade_required" ||
 		errorState?.type === "no_models_available";
 
+	// Determine if we should show the "AI is thinking" indicator
+	const showThinkingIndicator = loading && !isStreaming && !errorState;
+
 	return (
 		<>
 			{variant === "compact" ? (
@@ -458,7 +447,6 @@ export function QuestionGenerator({
 			<Dialog
 				open={isOpen}
 				onOpenChange={(val) => {
-					// propagate change and keep internal state in uncontrolled mode
 					if (onOpenChange) onOpenChange(val);
 					if (open === undefined) setIsOpen(val);
 				}}
@@ -508,15 +496,18 @@ export function QuestionGenerator({
 										</div>
 									</div>
 								))}
-							{loading && messages.length === 0 && (
-								<div className="flex justify-start">
-									<div className="bg-muted text-foreground px-4 py-3 rounded-lg">
-										<p className="text-sm">Starting...</p>
+								
+								{/* AI Thinking Indicator - shows when waiting for response but not yet streaming */}
+								{showThinkingIndicator && (
+									<div className="flex justify-start">
+										<div className="bg-muted text-foreground px-4 py-3 rounded-lg flex items-center gap-2">
+											<Loader2 className="h-4 w-4 animate-spin" />
+											<span className="text-sm">L&apos;IA r&eacute;fl&eacute;chit...</span>
+										</div>
 									</div>
-								</div>
-							)}
+								)}
 
-								{/* Show TokenWarning when not loading and there is no response (empty or interrupted) */}
+								{/* Show TokenWarning when not loading and there is no response */}
 								{(() => {
 									const lastMessage = messages[messages.length - 1];
 									const noAssistantResponse =
@@ -537,7 +528,6 @@ export function QuestionGenerator({
 												variant="inline"
 												customMessage={errorState.message}
 												onRetryLater={() => {
-													// Try restarting the conversation when the user retries
 													setErrorState(null);
 													startConversation();
 												}}
@@ -570,9 +560,10 @@ export function QuestionGenerator({
 									<Button
 										variant="outline"
 										onClick={() => setOpen(false)}
+										disabled={isSaving}
 										className="cursor-pointer"
 									>
-										Close
+										{isSaving ? "Saving..." : "Close"}
 									</Button>
 									<Button
 										onClick={sendMessage}
@@ -583,7 +574,7 @@ export function QuestionGenerator({
 									</Button>
 								</div>
 								<span className="text-sm text-muted-foreground text-center block">
-									Don't trust the AI completely.
+									Don&apos;t trust the AI completely.
 								</span>
 							</div>
 						</>
