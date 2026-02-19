@@ -20,6 +20,7 @@ export interface TokenWarningProps {
 		| "byok_or_upgrade_required"
 		| "rate_limit"
 		| "no_models_available"
+		| "invalid_api_key"
 		| "generic";
 	customMessage?: string;
 	premiumUrl?: string;
@@ -59,6 +60,12 @@ const ERROR_MESSAGES = {
 		description:
 			"No free AI models are currently available. Try again later or upgrade to premium for priority access.",
 		icon: AlertTriangle,
+	},
+	invalid_api_key: {
+		title: "API key invalid",
+		description:
+			"The OpenRouter API key is invalid or has been revoked. Please check your environment variables or add your own key in settings.",
+		icon: KeyRound,
 	},
 	generic: {
 		title: "Service temporarily unavailable",

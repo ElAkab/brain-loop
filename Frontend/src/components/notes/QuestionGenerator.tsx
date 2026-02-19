@@ -82,6 +82,13 @@ export function QuestionGenerator({
 		if (normalized.includes("rate")) return "rate_limit";
 
 		if (
+			normalized.includes("invalid_api_key") ||
+			normalized.includes("user not found")
+		) {
+			return "invalid_api_key";
+		}
+
+		if (
 			normalized.includes("all_models_failed") ||
 			normalized.includes("no_models")
 		) {
@@ -156,7 +163,7 @@ export function QuestionGenerator({
 					durationSeconds,
 				}),
 			});
-			
+
 			// Refresh credits after session ends
 			refreshCredits();
 		} catch (error) {
@@ -165,12 +172,21 @@ export function QuestionGenerator({
 		} finally {
 			setIsSaving(false);
 		}
-	}, [messages, noteId, noteIds, categoryId, currentModel, currentKeySource, sessionStartTime, refreshCredits]);
+	}, [
+		messages,
+		noteId,
+		noteIds,
+		categoryId,
+		currentModel,
+		currentKeySource,
+		sessionStartTime,
+		refreshCredits,
+	]);
 
 	const setOpen = (val: boolean) => {
 		if (onOpenChange) onOpenChange(val);
 		if (open === undefined) setIsOpen(val);
-		
+
 		if (!val) {
 			useFeedbackStore.getState().triggerFeedback();
 		}
@@ -189,7 +205,7 @@ export function QuestionGenerator({
 
 		try {
 			setIsStreaming(true);
-			
+
 			await readSSEStream(response, {
 				onDelta: (content) => {
 					accumulatedContent += content;
@@ -205,7 +221,10 @@ export function QuestionGenerator({
 							];
 						}
 
-						return [...baseMessages, { role: "assistant", content: accumulatedContent }];
+						return [
+							...baseMessages,
+							{ role: "assistant", content: accumulatedContent },
+						];
 					});
 				},
 				onMetadata: (data) => {
@@ -233,7 +252,10 @@ export function QuestionGenerator({
 							];
 						}
 
-						return [...baseMessages, { role: "assistant", content: accumulatedContent }];
+						return [
+							...baseMessages,
+							{ role: "assistant", content: accumulatedContent },
+						];
 					});
 
 					(window as any).__lastAIFeedback = metadata;
@@ -415,6 +437,7 @@ export function QuestionGenerator({
 		errorState?.type === "quota_exhausted" ||
 		errorState?.type === "platform_budget_exhausted" ||
 		errorState?.type === "byok_or_upgrade_required" ||
+		errorState?.type === "invalid_api_key" ||
 		errorState?.type === "no_models_available";
 
 	// Determine if we should show the "AI is thinking" indicator
@@ -452,25 +475,25 @@ export function QuestionGenerator({
 				}}
 			>
 				<DialogContent
-				className="sm:max-w-[700px] max-h-[85vh] flex flex-col"
-				suppressHydrationWarning
-			>
+					className="sm:max-w-[700px] max-h-[85vh] flex flex-col"
+					suppressHydrationWarning
+				>
 					<DialogHeader>
 						<DialogTitle>AI Study Session</DialogTitle>
 					</DialogHeader>
 
-						{isBlockingError ? (
-							<div className="space-y-4">
-								<TokenWarning
-									errorType={errorState?.type}
-									customMessage={errorState?.message}
-									onRetryLater={() => {
-										setErrorState(null);
-										startConversation();
-									}}
-								/>
-							</div>
-						) : (
+					{isBlockingError ? (
+						<div className="space-y-4">
+							<TokenWarning
+								errorType={errorState?.type}
+								customMessage={errorState?.message}
+								onRetryLater={() => {
+									setErrorState(null);
+									startConversation();
+								}}
+							/>
+						</div>
+					) : (
 						<>
 							{/* Messages */}
 							<div className="flex-1 overflow-y-auto space-y-4 py-4">
@@ -496,13 +519,13 @@ export function QuestionGenerator({
 										</div>
 									</div>
 								))}
-								
+
 								{/* AI Thinking Indicator - shows when waiting for response but not yet streaming */}
 								{showThinkingIndicator && (
 									<div className="flex justify-start">
 										<div className="bg-muted text-foreground px-4 py-3 rounded-lg flex items-center gap-2">
 											<Loader2 className="h-4 w-4 animate-spin" />
-											<span className="text-sm">L&apos;IA r&eacute;fl&eacute;chit...</span>
+											<span className="text-sm">Tinking...</span>
 										</div>
 									</div>
 								)}

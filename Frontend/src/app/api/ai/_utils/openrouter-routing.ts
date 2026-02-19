@@ -28,7 +28,8 @@ type OpenRouterModelErrorCode =
 	| "insufficient_quota"
 	| "rate_limit_exceeded"
 	| "invalid_model"
-	| "invalid_api_key";
+	| "invalid_api_key"
+	| "user_not_found";
 
 type OpenRouterPublicErrorCode =
 	| "context_length_exceeded"
@@ -37,7 +38,8 @@ type OpenRouterPublicErrorCode =
 	| "platform_budget_exhausted"
 	| "byok_or_upgrade_required"
 	| "ALL_MODELS_FAILED"
-	| "credits_exhausted";
+	| "credits_exhausted"
+	| "invalid_api_key";
 
 type KeySource = "platform" | "byok";
 
@@ -156,6 +158,28 @@ async function validateOpenRouterApiKey(apiKey: string): Promise<{ valid: boolea
 			return { valid: false, error: `API validation failed: ${response.status}` };
 		}
 
+		// Also check auth status by fetching user info (if available)
+		try {
+			const authResponse = await fetch(`${OPENROUTER_BASE_URL}/auth/key`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+				},
+			});
+			
+			if (authResponse.ok) {
+				const authData = await authResponse.json();
+				console.log("[OpenRouter] Key validation - account status:", {
+					label: authData.data?.label || "unknown",
+					limit_remaining: authData.data?.limit_remaining,
+					usage: authData.data?.usage,
+				});
+			}
+		} catch (e) {
+			// Non-critical, just log
+			console.log("[OpenRouter] Could not fetch auth status:", e);
+		}
+
 		return { valid: true };
 	} catch (error) {
 		return { valid: false, error: `Network error during validation: ${error}` };
@@ -208,6 +232,14 @@ function classifyOpenRouterError(errorData: unknown): OpenRouterModelErrorCode |
 		code === "invalid_model"
 	) {
 		return "invalid_model";
+	}
+
+	// Check for "user not found" specifically (indicates invalid/revoked key)
+	if (
+		message.includes("user not found") ||
+		message.includes("user not")
+	) {
+		return "user_not_found";
 	}
 
 	if (
@@ -292,6 +324,12 @@ async function callOpenRouterChatCompletion(
 	if (typeof options.maxTokens === "number") {
 		payload.max_tokens = options.maxTokens;
 	}
+
+	// Debug: Log key format (first/last 4 chars only for security)
+	const keyPreview = candidate.apiKey 
+		? `${candidate.apiKey.slice(0, 4)}...${candidate.apiKey.slice(-4)}`
+		: "missing";
+	console.log(`[OpenRouter] Making request with key: ${keyPreview}, source: ${candidate.source}`);
 
 	return fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
 		method: "POST",
@@ -447,6 +485,18 @@ export async function routeOpenRouterRequest(
 						status: 400,
 						code: "context_length_exceeded",
 						error: "Context length exceeded for this model.",
+						details: errorBody,
+					};
+				}
+
+				// API key issue - don't try other models, give clear error
+				if (classified === "user_not_found" || classified === "invalid_api_key") {
+					console.error(`[OpenRouter] API key issue detected: ${classified}`);
+					return {
+						ok: false,
+						status: 401,
+						code: "invalid_api_key",
+						error: "OpenRouter API key is invalid or revoked. Please check your OPENROUTER_DEV_API_KEY environment variable or add your own key in settings.",
 						details: errorBody,
 					};
 				}

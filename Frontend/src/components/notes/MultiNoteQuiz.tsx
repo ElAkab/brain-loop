@@ -63,6 +63,10 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 
 		if (normalized.includes("rate")) return "rate_limit";
 
+		if (normalized.includes("invalid_api_key") || normalized.includes("user not found")) {
+			return "invalid_api_key";
+		}
+
 		if (
 			normalized.includes("all_models_failed") ||
 			normalized.includes("no_models")
@@ -255,6 +259,7 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		errorState?.type === "quota_exhausted" ||
 		errorState?.type === "platform_budget_exhausted" ||
 		errorState?.type === "byok_or_upgrade_required" ||
+		errorState?.type === "invalid_api_key" ||
 		errorState?.type === "no_models_available";
 
 	// Determine if we should show the "AI is thinking" indicator
