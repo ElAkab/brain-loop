@@ -14,6 +14,7 @@ N/A - Greenfield project.
 | :--- | :--- | :--- | :--- |
 | 2026-01-23 | 0.1 | Initial Architecture Draft | Winston (Architect) |
 | 2026-02-01 | 0.2 | Finalized quota strategy, RLS policies, and migration structure | Winston (Architect) |
+| 2026-02-20 | 1.0 | Top-up only model: profiles.credits replaces user_credits, processed_stripe_events added, subscription model removed | Claude (Dev) |
 
 ## High Level Architecture
 
@@ -92,30 +93,32 @@ graph TD
 ## Data Models
 
 ### Profile (User)
-**Purpose:** Extension de la table `auth.users` de Supabase pour stocker les infos publiques, préférences et plan d'abonnement.
+**Purpose:** Extension de la table `auth.users` de Supabase pour stocker les infos publiques, préférences et solde de crédits. **Depuis v1.0 : la table `user_credits` est fusionnée ici.**
 **Key Attributes:**
 - `id` (UUID): Primary Key, Foreign Key vers `auth.users`.
 - `email` (String): Pour affichage et notifications.
 - `full_name` (String): Nom d'affichage.
 - `avatar_url` (String): URL image profil.
-- `subscription_tier` (Enum): 'FREE', 'PRO', 'ENTERPRISE' - Détermine les limites applicables.
-- `energy_credits` (Int): Le solde de "Points Neurone" - **Illimité pour FREE** (pas de déduction pour quiz/chat de base).
-- `hint_credits` (Int): Compteur de hints utilisés cette semaine (FREE: max 3/semaine).
-- `hint_credits_reset_at` (Timestamp): Date de prochain reset hebdomadaire.
+- `credits` (Int, default 0): Solde de crédits achetés (top-up). **N'expirent jamais.**
+- `stripe_customer_id` (String, nullable): Stripe customer ID, persisté après le premier achat.
+- `free_used_today` (Int, default 0): Nombre de crédits gratuits consommés aujourd'hui.
+- `free_reset_at` (Timestamp): Prochain reset du quota gratuit (minuit UTC).
 - `created_at` (Timestamp): Date d'inscription.
 - `updated_at` (Timestamp): Dernière modification.
 
-**Quota Strategy (Freemium-First):**
-- **FREE Tier:**
-  - Quiz/Chat illimités (fonctionnalité core gratuite)
-  - Hints: 3 par semaine (reset hebdomadaire)
-  - Pas de limite de notes
-  - Pas de limite de catégories
-- **PRO Tier (Future):**
-  - Hints illimités
-  - Accès à des modèles premium (GPT-4, Claude Opus)
-  - Analytics avancés
-  - Export de données
+**Quota Strategy (Top-up + Free Quota):**
+- **Priority model (consume_credit RPC):** BYOK (unlimited) → purchased `credits` → free daily quota (20/day)
+- **Free Tier:** 20 questions/jour avec modèles gratuits (Llama, Qwen). Reset automatique via `free_reset_at`.
+- **Top-up:** €3 = 30 crédits premium (GPT-4o, Mistral 7B). Jamais d'expiration.
+- **BYOK:** Clé OpenRouter personnelle → illimité, aucun crédit consommé.
+- **Supprimé :** Plan Pro (abonnement mensuel) — `/api/subscriptions` retourne HTTP 410.
+
+### processed_stripe_events
+**Purpose:** Idempotency table pour les webhooks Stripe. Remplace le `Set<string>` en mémoire (anti-pattern serverless).
+**Key Attributes:**
+- `event_id` (Text, PRIMARY KEY): Stripe event ID (`evt_...`).
+- `processed_at` (Timestamp): Date de traitement.
+**Security:** RLS activé, aucune politique utilisateur — accessible uniquement via `service_role` (createAdminClient).
 
 ### Category
 **Purpose:** Organise les notes par sujet.
@@ -195,18 +198,28 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- CREATE EXTENSION IF NOT EXISTS "vector"; -- MVP+ for embeddings
 
 -- 1. PROFILES (Extension of auth.users)
+-- v1.0: user_credits table merged into profiles. subscription_tier/energy_credits removed.
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
-  subscription_tier TEXT DEFAULT 'FREE' CHECK (subscription_tier IN ('FREE', 'PRO', 'ENTERPRISE')),
-  energy_credits INTEGER DEFAULT 0, -- Not used for FREE tier (unlimited core features)
-  hint_credits INTEGER DEFAULT 0 CHECK (hint_credits >= 0), -- Counter: used hints this week
-  hint_credits_reset_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 week'),
+  credits INTEGER NOT NULL DEFAULT 0,                        -- Purchased top-up credits (never expire)
+  stripe_customer_id TEXT,                                   -- Persisted after first Stripe purchase
+  free_used_today INTEGER NOT NULL DEFAULT 0,                -- Daily free quota consumption
+  free_reset_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),      -- Next daily reset (midnight UTC)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- 1b. STRIPE WEBHOOK IDEMPOTENCY
+-- Replaces in-memory Set<string> (anti-pattern for serverless cold starts)
+CREATE TABLE public.processed_stripe_events (
+  event_id     TEXT PRIMARY KEY,
+  processed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.processed_stripe_events ENABLE ROW LEVEL SECURITY;
+-- No user-facing policies: accessible via service_role only (createAdminClient)
 
 -- 2. CATEGORIES
 CREATE TABLE public.categories (

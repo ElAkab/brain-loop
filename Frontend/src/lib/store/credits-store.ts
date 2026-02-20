@@ -1,18 +1,19 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
-interface CreditInfo {
-	premium_balance: number;
-	monthly_credits_used: number;
-	monthly_credits_limit: number;
-	monthly_remaining: number;
-	total_premium_available: number;
+export interface CreditInfo {
+	// Purchased credits (top-up, never expire)
+	credits: number;
+	has_credits: boolean;
+
+	// Free daily quota
 	free_quota: number;
 	free_used: number;
 	free_remaining: number;
-	subscription_tier: string;
-	subscription_status: string;
-	is_pro: boolean;
+
+	// BYOK
 	has_byok: boolean;
+
+	// Total usable right now (-1 = unlimited with BYOK)
 	total_available: number;
 }
 
@@ -26,6 +27,7 @@ interface CreditsStore {
 export const useCreditsStore = create<CreditsStore>((set) => ({
 	info: null,
 	isLoading: true,
+
 	fetchCredits: async () => {
 		try {
 			set({ isLoading: true });
@@ -41,6 +43,7 @@ export const useCreditsStore = create<CreditsStore>((set) => ({
 			set({ isLoading: false });
 		}
 	},
+
 	refreshCredits: async () => {
 		try {
 			const res = await fetch("/api/credits");

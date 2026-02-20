@@ -30,6 +30,7 @@ The user experience is centered on fluidity: from quick note-taking to intellige
 | 2026-01-23 | 0.7     | Added Epic 2 Details                      | John (PM) |
 | 2026-01-23 | 0.8     | Added Epic 3 Details                      | John (PM) |
 | 2026-01-23 | 0.9     | Added Epic 4 Details                      | John (PM) |
+| 2026-02-20 | 1.0     | Top-up only model: removed Pro/subscription, updated FR9/FR11, Story 4.1–4.2 | Claude (Dev) |
 
 ## Requirements
 
@@ -43,9 +44,9 @@ The user experience is centered on fluidity: from quick note-taking to intellige
 - **FR6:** Le système doit générer des questions pertinentes basées _uniquement_ sur le contenu des notes sélectionnées.
 - **FR7:** Le système doit fournir un feedback immédiat sur les réponses de l'utilisateur (correction, compléments).
 - **FR8:** Le système doit identifier les termes clés dans les réponses et générer dynamiquement des boutons de recherche cliquables (Google/Interne) pour approfondir.
-- **FR9:** L'utilisateur doit pouvoir visualiser son niveau d' "Énergie d'Apprentissage" (Credits) ou son statut "Pro".
+- **FR9:** L'utilisateur doit pouvoir visualiser son solde de crédits (achetés ou quota gratuit quotidien) via une interface dédiée dans le header.
 - **FR10:** L'utilisateur "Power User" doit pouvoir renseigner sa propre clé API OpenRouter pour un usage illimité, contournant le système d'énergie.
-- **FR11:** Le système doit envoyer une alerte lorsque l'énergie est basse et proposer l'upgrade vers le plan Pro.
+- **FR11:** Le système doit afficher un avertissement visuel lorsque les crédits sont bas (≤ 5) et proposer l'achat de crédits supplémentaires via `/payment`.
 
 ### Non-Functional Requirements
 
@@ -295,21 +296,27 @@ Mettre en place un modèle économique hybride : un système de crédits "Énerg
 
 ### Stories
 
-- **Story 4.1: The "Energy" System (Internal Currency)**
+- **Story 4.1: The Credit System (Daily Free Quota + Purchased Top-up)** ✅ IMPLEMENTED
   - **As a** System,
-  - **I want** to deduct "Energy" points for every AI request based on the model's cost,
-  - **so that** I can normalize usage across different models for Free/Pro users.
-  - _AC1:_ Database `user_quotas` updated to track `energy_balance`.
-  - _AC2:_ Backend logic converts Tokens (Input/Output) into "Energy" points.
-  - _AC3:_ Daily cron job resets Energy for Free Tier users (e.g., to 1000 Energy).
+  - **I want** to track and deduct one credit per AI request,
+  - **so that** free users are limited to a daily quota and premium users consume purchased credits.
+  - _AC1:_ `profiles` table tracks `credits` (purchased, never expire) and `free_used_today` / `free_reset_at` (daily quota, resets at midnight UTC).
+  - _AC2:_ `consume_credit()` SECURITY DEFINER RPC deducts purchased credits first, falls back to free quota. Atomic `FOR UPDATE` lock prevents races.
+  - _AC3:_ Credit consumed only after a successful streaming AI response (never on error).
+  - _AC4:_ Priority model: BYOK (unlimited) → purchased credits → free daily quota (20/day).
+  - **Implementation:** `Backend/migrations/20260220000000_topup_simplification.sql`, `Frontend/src/lib/credits.ts`
 
-- **Story 4.2: Stripe Integration (Pro Tier)**
+- **Story 4.2: Stripe Top-up Integration** ✅ IMPLEMENTED
   - **As a** User,
-  - **I want** to subscribe to a "Pro" plan,
-  - **so that** I get a higher Energy cap and access to premium models.
-  - _AC1:_ Stripe Checkout integration for monthly subscription.
-  - _AC2:_ Webhook handler updates user status to `PRO` and increases Energy cap.
-  - _AC3:_ Customer Portal link for managing subscription.
+  - **I want** to buy a one-time credit pack (€3 = 30 credits),
+  - **so that** I can access premium AI models without a recurring subscription.
+  - _AC1:_ Stripe Checkout in `mode: "payment"` (one-time) — no subscriptions.
+  - _AC2:_ Webhook `checkout.session.completed` atomically adds credits to `profiles.credits` via `add_credits()` RPC.
+  - _AC3:_ DB-persisted idempotency via `processed_stripe_events` table (survives serverless cold starts).
+  - _AC4:_ Confirmation email sent via Resend after successful top-up.
+  - _AC5:_ Credits never expire.
+  - **Implementation:** `Frontend/src/app/api/credits/checkout/route.ts`, `Frontend/src/app/api/webhooks/stripe/route.ts`
+  - **Deprecated:** Pro subscription (`/api/subscriptions`) — returns HTTP 410 Gone.
 
 - **Story 4.3: BYOK "Power Mode" (Escape Hatch)**
   - **As a** Power User,

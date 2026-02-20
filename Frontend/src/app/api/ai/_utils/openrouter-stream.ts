@@ -4,9 +4,19 @@ export type StreamMetadata = {
 	conclusion: string;
 };
 
+/** Subset sent to the frontend — analysis is server-side only */
+export type StreamMetadataPublic = {
+	weaknesses: string;
+	conclusion: string;
+};
+
 export type KeySource = "platform" | "byok";
 
+// Legacy export kept for import compat (quiz-multi imports it)
 export const METADATA_DELIMITER = "\n\n<<METADATA_JSON>>\n";
+
+// The actual marker text emitted by the LLM (whitespace around it may vary)
+const METADATA_MARKER = "<<METADATA_JSON>>";
 
 const EMPTY_METADATA: StreamMetadata = {
 	analysis: "",
@@ -65,7 +75,10 @@ export function streamOpenRouterResponse(
 			const decoder = new TextDecoder();
 
 			if (!reader) {
-				enqueueSSE(controller, { type: "metadata", data: EMPTY_METADATA });
+				enqueueSSE(controller, {
+					type: "metadata",
+					data: { weaknesses: "", conclusion: "" } satisfies StreamMetadataPublic,
+				});
 				enqueueDone(controller);
 				controller.close();
 				return;
@@ -73,7 +86,14 @@ export function streamOpenRouterResponse(
 
 			let buffer = "";
 			let fullText = "";
+
+			// delimiterIndex: index in fullText where chat content ends
+			// (trimmed whitespace before <<METADATA_JSON>>)
 			let delimiterIndex: number | null = null;
+
+			// markerEndIdx: index right after "<<METADATA_JSON>>" in fullText
+			let markerEndIdx: number | null = null;
+
 			let lastSentLength = 0;
 			let metadataText = "";
 			let doneSent = false;
@@ -83,9 +103,20 @@ export function streamOpenRouterResponse(
 
 				fullText += content;
 
+				// Detect marker with flexible surrounding whitespace
 				if (delimiterIndex === null) {
-					const idx = fullText.indexOf(METADATA_DELIMITER);
-					if (idx !== -1) delimiterIndex = idx;
+					const idx = fullText.indexOf(METADATA_MARKER);
+					if (idx !== -1) {
+						// Chat content ends before any whitespace that precedes the marker
+						delimiterIndex = idx;
+						while (
+							delimiterIndex > 0 &&
+							"\n\r ".includes(fullText[delimiterIndex - 1])
+						) {
+							delimiterIndex--;
+						}
+						markerEndIdx = idx + METADATA_MARKER.length;
+					}
 				}
 
 				const safeEnd =
@@ -93,7 +124,7 @@ export function streamOpenRouterResponse(
 						? delimiterIndex
 						: Math.max(
 								0,
-								fullText.length - getHoldLength(fullText, METADATA_DELIMITER),
+								fullText.length - getHoldLength(fullText, METADATA_MARKER),
 							);
 
 				if (safeEnd > lastSentLength) {
@@ -104,9 +135,11 @@ export function streamOpenRouterResponse(
 					});
 				}
 
-				if (delimiterIndex !== null) {
-					const metadataStart = delimiterIndex + METADATA_DELIMITER.length;
-					metadataText = fullText.slice(metadataStart);
+				// Build metadata text: skip leading whitespace right after the marker
+				if (markerEndIdx !== null) {
+					let ms = markerEndIdx;
+					while (ms < fullText.length && "\n\r ".includes(fullText[ms])) ms++;
+					metadataText = fullText.slice(ms);
 				}
 			};
 
@@ -157,7 +190,14 @@ export function streamOpenRouterResponse(
 						});
 					}
 					const metadata = parseMetadata(metadataText);
-					enqueueSSE(controller, { type: "metadata", data: metadata });
+					// Send only weaknesses + conclusion to the client.
+					// "analysis" is a server-side field used for DB context only —
+					// it must never be rendered in the chat UI.
+					const publicMetadata: StreamMetadataPublic = {
+						weaknesses: metadata.weaknesses,
+						conclusion: metadata.conclusion,
+					};
+					enqueueSSE(controller, { type: "metadata", data: publicMetadata });
 					enqueueDone(controller);
 					controller.close();
 				}

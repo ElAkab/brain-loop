@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  Coins, 
-  Crown, 
-  Sparkles, 
+import {
+  Coins,
+  Crown,
+  Sparkles,
   Check,
   Zap,
   Loader2,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,15 +24,15 @@ import { CreditDisplay } from "@/components/credits/CreditDisplay";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function PaymentPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState<string | null>(null);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [loading, setLoading] = useState<"pro" | "credits" | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{
+    subscription_status: string;
+  } | null>(null);
 
-  // Fetch subscription status on load
   useEffect(() => {
     fetch("/api/subscriptions")
-      .then(res => res.json())
-      .then(data => setSubscriptionStatus(data))
+      .then((res) => res.json())
+      .then((data) => setSubscriptionStatus(data))
       .catch(console.error);
   }, []);
 
@@ -41,12 +40,19 @@ export default function PaymentPage() {
 
   const handleSubscribe = async () => {
     setLoading("pro");
-    
+
     try {
       const response = await fetch("/api/subscriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+
+      if (response.status === 410) {
+        alert(
+          "Monthly subscriptions are temporarily unavailable. Buy credits to access premium models."
+        );
+        return;
+      }
 
       const data = await response.json();
 
@@ -68,7 +74,7 @@ export default function PaymentPage() {
 
   const handleTopUp = async () => {
     setLoading("credits");
-    
+
     try {
       const response = await fetch("/api/credits/checkout", {
         method: "POST",
@@ -109,7 +115,11 @@ export default function PaymentPage() {
       {/* Two Options */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Pro Subscription */}
-        <Card className={`relative flex flex-col ${!isPro ? "border-primary shadow-lg" : "border-muted"}`}>
+        <Card
+          className={`relative flex flex-col ${
+            !isPro ? "border-primary shadow-lg" : "border-muted"
+          }`}
+        >
           {!isPro && (
             <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary">
               Recommended
@@ -130,11 +140,13 @@ export default function PaymentPage() {
             <ul className="space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span><strong>200 credits</strong> premium per month</span>
+                <span>
+                  <strong>200 credits</strong> premium per month
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span>GPT-4o & Mistral 7B models</span>
+                <span>GPT-4o &amp; Mistral 7B models</span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
@@ -153,8 +165,8 @@ export default function PaymentPage() {
                 Subscription Active
               </Button>
             ) : (
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 size="lg"
                 onClick={handleSubscribe}
                 disabled={loading === "pro"}
@@ -182,12 +194,16 @@ export default function PaymentPage() {
           <CardContent className="flex-1 space-y-4">
             <div className="text-center">
               <div className="text-4xl font-bold">€3</div>
-              <div className="text-sm text-muted-foreground">one-time payment</div>
+              <div className="text-sm text-muted-foreground">
+                one-time payment
+              </div>
             </div>
             <ul className="space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span><strong>30 premium</strong> credits</span>
+                <span>
+                  <strong>30 premium</strong> credits
+                </span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
@@ -204,8 +220,8 @@ export default function PaymentPage() {
             </ul>
           </CardContent>
           <CardFooter>
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               size="lg"
               variant="outline"
               onClick={handleTopUp}
@@ -226,7 +242,7 @@ export default function PaymentPage() {
       <Alert className="bg-muted border-muted">
         <Sparkles className="h-4 w-4" />
         <AlertDescription>
-          <strong>Free:</strong> 20 quizzes/day with free models (Llama, Qwen). 
+          <strong>Free:</strong> 20 quizzes/day with free models (Llama, Qwen).
           No credit card required.
         </AlertDescription>
       </Alert>
@@ -236,15 +252,24 @@ export default function PaymentPage() {
         <div className="flex items-start gap-2">
           <Zap className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
-            <strong className="text-foreground">What happens when I run out of credits?</strong>
-            <p>You automatically switch to free models. You are never blocked.</p>
+            <strong className="text-foreground">
+              What happens when I run out of credits?
+            </strong>
+            <p>
+              You automatically switch to free models. You are never blocked.
+            </p>
           </div>
         </div>
         <div className="flex items-start gap-2">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
-            <strong className="text-foreground">Can I cancel my subscription?</strong>
-            <p>Yes, anytime. Your credits remain usable until the end of the current period.</p>
+            <strong className="text-foreground">
+              Can I cancel my subscription?
+            </strong>
+            <p>
+              Yes, anytime. Your credits remain usable until the end of the
+              current period.
+            </p>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -8,267 +9,156 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-const resend = process.env.RESEND_API_KEY 
+
+const resend = process.env.RESEND_API_KEY
 	? new Resend(process.env.RESEND_API_KEY)
 	: null;
 
-// Idempotency: Track processed events
-const processedEvents = new Set<string>();
+// Zod v4 validation for top-up checkout metadata
+const TopUpMetadataSchema = z.object({
+	user_id: z.string().uuid(),
+	credits: z.string().regex(/^\d+$/),
+	type: z.literal("topup"),
+});
 
 /**
  * POST /api/webhooks/stripe
- * Handles all Stripe webhook events for subscriptions and credit purchases
+ *
+ * Handles Stripe webhook events for the top-up billing model.
+ * Only processes: checkout.session.completed (type=topup, payment_status=paid)
+ *
+ * Idempotency: tracked in processed_stripe_events table (DB-persisted, survives cold starts).
+ * Security: Stripe signature verified before any DB operation.
+ * Auth: uses createAdminClient() (service role) — no user session in webhook context.
  */
 export async function POST(request: NextRequest) {
 	const payload = await request.text();
 	const signature = request.headers.get("stripe-signature");
 
 	if (!signature) {
-		return NextResponse.json(
-			{ error: "Missing stripe-signature header" },
-			{ status: 400 }
-		);
+		return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
 	}
 
+	// ── 1. Verify Stripe signature ─────────────────────────────────────────
 	let event: Stripe.Event;
-
 	try {
 		event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-	} catch (err: any) {
-		console.error("Webhook signature verification failed:", err.message);
-		return NextResponse.json(
-			{ error: `Webhook Error: ${err.message}` },
-			{ status: 400 }
-		);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : "Unknown error";
+		console.error("Webhook signature verification failed:", message);
+		return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
 	}
 
-	// Idempotency check
-	if (processedEvents.has(event.id)) {
-		console.log(`Event ${event.id} already processed, skipping`);
+	// Admin client bypasses RLS — required since webhook has no user session
+	const supabase = createAdminClient();
+
+	// ── 2. DB-based idempotency check ──────────────────────────────────────
+	const { data: alreadyProcessed } = await supabase
+		.from("processed_stripe_events")
+		.select("event_id")
+		.eq("event_id", event.id)
+		.maybeSingle();
+
+	if (alreadyProcessed) {
+		console.log(`[Webhook] Event ${event.id} already processed — skipping`);
 		return NextResponse.json({ received: true, idempotent: true });
 	}
 
-	const supabase = await createClient();
-
+	// ── 3. Handle events ───────────────────────────────────────────────────
 	try {
-		switch (event.type) {
-			// Credit top-up (one-time purchase)
-			case "checkout.session.completed": {
-				const session = event.data.object as Stripe.Checkout.Session;
-				
-				// Only process if it's a credit purchase (has credits metadata)
-				const credits = session.metadata?.credits;
-				if (credits && session.payment_status === "paid") {
-					const userId = session.metadata?.user_id;
-					if (!userId) {
-						console.error("Missing user_id in checkout session:", session.id);
-						return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
-					}
+		if (event.type === "checkout.session.completed") {
+			const session = event.data.object as Stripe.Checkout.Session;
 
-					const creditAmount = parseInt(credits, 10);
-					
-					// Initialize user if not exists, then add credits
-					await supabase.rpc("initialize_user_credits", {
-						p_user_id: userId,
-					});
-					
-					// Add credits
-					const { data, error } = await supabase.rpc("add_credits", {
-						p_user_id: userId,
-						p_amount: creditAmount,
-						p_metadata: {
-							stripe_session_id: session.id,
-							stripe_payment_intent: session.payment_intent,
-							amount_total: session.amount_total,
-							currency: session.currency,
-							pack_type: session.metadata?.pack_type || "topup",
-						},
-					});
+			// Validate metadata (Zod)
+			const metaParse = TopUpMetadataSchema.safeParse(session.metadata);
 
-					if (error) {
-						console.error("Error adding credits:", error);
-						return NextResponse.json(
-							{ error: "Failed to add credits" },
-							{ status: 500 }
-						);
-					}
-
-					// Send confirmation email
-					await sendEmail(userId, "credits_purchased", {
-						credits: creditAmount,
-						new_balance: data?.[0]?.new_balance || creditAmount,
-					});
-
-					console.log(`Added ${creditAmount} credits to user ${userId}`);
-				}
-				break;
+			if (!metaParse.success) {
+				// Not a top-up session (e.g. a legacy subscription checkout) — skip silently
+				console.log(
+					`[Webhook] Skipping non-topup session ${session.id}:`,
+					metaParse.error.issues,
+				);
+				await markProcessed(supabase, event.id);
+				return NextResponse.json({ received: true, skipped: true });
 			}
 
-			// Subscription created (initial signup)
-			case "customer.subscription.created": {
-				const subscription = event.data.object as Stripe.Subscription;
-				
-				// Get user ID from metadata or lookup
-				const userId = subscription.metadata?.user_id || 
-					await getUserIdFromCustomer(supabase, subscription.customer as string);
-				
-				if (userId) {
-					// Initialize user credits if not exists
-					await supabase.rpc("initialize_user_credits", { p_user_id: userId });
-					
-					// Handle subscription payment (this resets credits if active)
-					await supabase.rpc("handle_subscription_payment", {
-						p_user_id: userId,
-						p_stripe_customer_id: subscription.customer as string,
-						p_stripe_subscription_id: subscription.id,
-						p_status: subscription.status === "active" ? "active" : "inactive",
-						p_current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
-					});
-					
-					// Send welcome email
-					await sendEmail(userId, "subscription_created", {});
-					console.log(`Subscription created for user ${userId}`);
-				}
-				break;
+			if (session.payment_status !== "paid") {
+				console.log(`[Webhook] Session ${session.id} not paid yet — skipping`);
+				await markProcessed(supabase, event.id);
+				return NextResponse.json({ received: true, skipped: true });
 			}
 
-			// Subscription updated
-			case "customer.subscription.updated": {
-				const subscription = event.data.object as Stripe.Subscription;
-				const userId = await getUserIdFromCustomer(supabase, subscription.customer as string);
-				
-				if (userId) {
-					await supabase.rpc("handle_subscription_payment", {
-						p_user_id: userId,
-						p_stripe_customer_id: subscription.customer as string,
-						p_stripe_subscription_id: subscription.id,
-						p_status: subscription.status === "active" ? "active" : 
-						         subscription.status === "canceled" ? "canceled" : "inactive",
-						p_current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
-					});
-					console.log(`Subscription updated for user ${userId}: ${subscription.status}`);
-				}
-				break;
+			const { user_id, credits: creditsStr } = metaParse.data;
+			const creditAmount = parseInt(creditsStr, 10);
+
+			// Add credits atomically via SECURITY DEFINER RPC
+			const { data: rpcResult, error: rpcError } = await supabase.rpc("add_credits", {
+				p_user_id: user_id,
+				p_amount: creditAmount,
+				p_metadata: {
+					stripe_session_id: session.id,
+					stripe_payment_intent: session.payment_intent,
+					amount_total: session.amount_total,
+					currency: session.currency,
+				},
+			});
+
+			if (rpcError) {
+				console.error("[Webhook] add_credits RPC error:", rpcError);
+				// Don't mark as processed — allow Stripe to retry
+				return NextResponse.json({ error: "Failed to add credits" }, { status: 500 });
 			}
 
-			// Subscription deleted (cancellation)
-			case "customer.subscription.deleted": {
-				const subscription = event.data.object as Stripe.Subscription;
-				const userId = await getUserIdFromCustomer(supabase, subscription.customer as string);
-				
-				if (userId) {
-					await supabase.rpc("update_subscription", {
-						p_user_id: userId,
-						p_stripe_customer_id: subscription.customer as string,
-						p_stripe_subscription_id: null,
-						p_status: "canceled",
-						p_current_period_end: null,
-					});
-					
-					// Send cancellation email
-					await sendEmail(userId, "subscription_cancelled", {});
-					console.log(`Subscription canceled for user ${userId}`);
-				}
-				break;
+			const newBalance = rpcResult?.[0]?.new_balance ?? creditAmount;
+			console.log(`[Webhook] Added ${creditAmount} credits to user ${user_id}. New balance: ${newBalance}`);
+
+			// Optionally store stripe_customer_id for future reference
+			if (session.customer && typeof session.customer === "string") {
+				await supabase
+					.from("profiles")
+					.update({ stripe_customer_id: session.customer })
+					.eq("id", user_id);
 			}
 
-			// Successful payment (for subscriptions - renewals)
-			case "invoice.payment_succeeded": {
-				const invoice = event.data.object as Stripe.Invoice;
-				const subscriptionId = (invoice as any).subscription;
-				
-				if (subscriptionId && invoice.billing_reason === "subscription_cycle") {
-					// This is a renewal payment - recharge credits!
-					const userId = await getUserIdFromCustomer(supabase, invoice.customer as string);
-					
-					if (userId) {
-						// Reset monthly credits for renewal
-						await supabase.rpc("reset_monthly_credits_for_user", { p_user_id: userId });
-						
-						// Send receipt email
-						await sendEmail(userId, "payment_succeeded", {
-							amount: invoice.amount_paid,
-							invoice_url: invoice.hosted_invoice_url,
-						});
-						
-						console.log(`Monthly credits recharged for user ${userId}`);
-					}
-				}
-				break;
-			}
-
-			// Failed payment
-			case "invoice.payment_failed": {
-				const invoice = event.data.object as Stripe.Invoice;
-				const subscriptionId = (invoice as any).subscription;
-				
-				if (subscriptionId) {
-					const userId = await getUserIdFromCustomer(supabase, invoice.customer as string);
-					
-					if (userId) {
-						await supabase.rpc("update_subscription", {
-							p_user_id: userId,
-							p_stripe_customer_id: invoice.customer as string,
-							p_stripe_subscription_id: subscriptionId,
-							p_status: "past_due",
-							p_current_period_end: new Date((invoice as any).period_end * 1000).toISOString(),
-						});
-						
-						// Send dunning email
-						await sendEmail(userId, "payment_failed", {
-							invoice_url: invoice.hosted_invoice_url,
-						});
-					}
-				}
-				break;
-			}
-
-			default:
-				console.log(`Unhandled event type: ${event.type}`);
+			// Send confirmation email (non-blocking — failure doesn't prevent credit addition)
+			await sendCreditEmail(supabase, user_id, creditAmount, newBalance);
+		} else {
+			console.log(`[Webhook] Unhandled event type: ${event.type}`);
 		}
 
-		// Mark event as processed
-		processedEvents.add(event.id);
-		
+		// ── 4. Mark event as processed ──────────────────────────────────────
+		await markProcessed(supabase, event.id);
+
 		return NextResponse.json({ received: true, success: true });
 	} catch (error) {
-		console.error("Error processing webhook:", error);
-		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
-		);
+		console.error("[Webhook] Unexpected error:", error);
+		return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 	}
 }
 
-async function getUserIdFromCustomer(
-	supabase: any,
-	customerId: string
-): Promise<string | null> {
-	const { data, error } = await supabase
-		.from("user_credits")
-		.select("user_id")
-		.eq("stripe_customer_id", customerId)
-		.maybeSingle();
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
-	if (error || !data) {
-		return null;
+async function markProcessed(supabase: ReturnType<typeof createAdminClient>, eventId: string) {
+	const { error } = await supabase
+		.from("processed_stripe_events")
+		.insert({ event_id: eventId });
+
+	if (error && error.code !== "23505") {
+		// 23505 = unique_violation (already inserted — race condition, safe to ignore)
+		console.error("[Webhook] Failed to mark event as processed:", error);
 	}
-
-	return data.user_id;
 }
 
-async function sendEmail(
+async function sendCreditEmail(
+	supabase: ReturnType<typeof createAdminClient>,
 	userId: string,
-	type: string,
-	data: Record<string, any>
+	amount: number,
+	newBalance: number,
 ) {
-	if (!resend) {
-		console.log("Resend not configured, skipping email");
-		return;
-	}
+	if (!resend) return;
 
-	// Get user email from profiles
-	const supabase = await createClient();
 	const { data: profile } = await supabase
 		.from("profiles")
 		.select("email, full_name")
@@ -276,66 +166,24 @@ async function sendEmail(
 		.maybeSingle();
 
 	if (!profile?.email) {
-		console.error("No email found for user:", userId);
+		console.error("[Webhook] No email found for user:", userId);
 		return;
 	}
-
-	const emailTemplates: Record<string, () => { subject: string; html: string }> = {
-		credits_purchased: () => ({
-			subject: "Credits Added to Your Account",
-			html: `<p>Hello ${profile.full_name || ""},</p>
-				<p>${data.credits} credits have been added to your account.</p>
-				<p>New balance: ${data.new_balance} credits</p>
-				<p>Thank you for your trust!</p>`,
-		}),
-		subscription_created: () => ({
-			subject: "Welcome to Pro Plan!",
-			html: `<p>Hello ${profile.full_name || ""},</p>
-				<p>Your Pro subscription is now active.</p>
-				<p>You have access to 200 premium credits per month.</p>
-				<p>Thank you for your trust!</p>`,
-		}),
-		subscription_cancelled: () => ({
-			subject: "Cancellation Confirmation",
-			html: `<p>Hello ${profile.full_name || ""},</p>
-				<p>Your subscription has been canceled.</p>
-				<p>Your remaining credits are still usable.</p>
-				<p>We hope to see you again soon!</p>`,
-		}),
-		payment_succeeded: () => ({
-			subject: "Payment Confirmation",
-			html: `<p>Hello ${profile.full_name || ""},</p>
-				<p>Your payment of ${data.amount / 100}€ has been received.</p>
-				${data.invoice_url ? `<p><a href="${data.invoice_url}">View Invoice</a></p>` : ""}
-				<p>Thank you!</p>`,
-		}),
-		payment_failed: () => ({
-			subject: "Payment Issue",
-			html: `<p>Hello ${profile.full_name || ""},</p>
-				<p>Your payment could not be processed.</p>
-				<p>Please update your payment information to continue enjoying the Pro plan.</p>
-				${data.invoice_url ? `<p><a href="${data.invoice_url}">Update Payment</a></p>` : ""}
-				<p>If the problem persists, contact us.</p>`,
-		}),
-	};
-
-	const template = emailTemplates[type];
-	if (!template) {
-		console.log(`No email template for type: ${type}`);
-		return;
-	}
-
-	const { subject, html } = template();
 
 	try {
 		await resend.emails.send({
 			from: "Echoflow <noreply@echoflow.app>",
 			to: profile.email,
-			subject,
-			html,
+			subject: "Credits Added to Your Account",
+			html: `
+				<p>Hello ${profile.full_name || ""},</p>
+				<p><strong>${amount} credits</strong> have been added to your account.</p>
+				<p>New balance: <strong>${newBalance} credits</strong></p>
+				<p>Credits never expire — use them at your own pace.</p>
+				<p>Thank you for your support!</p>
+			`,
 		});
-		console.log(`Email sent: ${type} to ${profile.email}`);
 	} catch (error) {
-		console.error("Error sending email:", error);
+		console.error("[Webhook] Error sending email:", error);
 	}
 }

@@ -2,6 +2,7 @@
 
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
 	Sheet,
 	SheetContent,
@@ -48,6 +49,16 @@ export function Header() {
 
 				{/* Spacer (Desktop) */}
 				<div className="hidden md:flex md:flex-1" />
+
+				{/* BETA badge (controlled by NEXT_PUBLIC_APP_STATUS env var) */}
+				{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
+					<Badge
+						variant="secondary"
+						className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+					>
+						BETA
+					</Badge>
+				)}
 
 				{/* Credit Balance */}
 				<CreditDisplay />

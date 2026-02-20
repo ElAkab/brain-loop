@@ -1,7 +1,4 @@
-import {
-	streamOpenRouterResponse,
-	METADATA_DELIMITER,
-} from "@/app/api/ai/_utils/openrouter-stream";
+import { streamOpenRouterResponse } from "@/app/api/ai/_utils/openrouter-stream";
 import {
 	routeOpenRouterRequest,
 	type OpenRouterMessage,
@@ -173,29 +170,48 @@ function normalizeIncomingMessages(payload: unknown): OpenRouterMessage[] {
 			.join("\n\n---\n\n");
 
 		// Prepare system prompt with explicit isFirstMessage flag
+		const noteIndex =
+			notes.length > 1
+				? notes.map((n, i) => `${i + 1}. "${n.title}"`).join(" | ")
+				: `"${notes[0].title}"`;
+
+		const multiNoteRules =
+			notes.length > 1
+				? `
+**MULTI-NOTE COVERAGE (${notes.length} notes — MANDATORY):**
+Notes in this session: ${noteIndex}
+
+- You MUST distribute questions EQUALLY across ALL ${notes.length} notes.
+- Do NOT focus on only one note. Every note must be covered.
+- isFirstMessage=TRUE: start from ANY note — do NOT always pick Note 1. Vary your starting point.
+- isFirstMessage=FALSE: after evaluating the answer, choose a question from a DIFFERENT note than the last one, OR ask a question that CONNECTS concepts across multiple notes.
+- If you just asked about Note ${notes.length}, cycle back to Note 1.
+`
+				: "";
+
 		const systemPrompt = `You are a helpful AI tutor helping students review and connect multiple study notes through interactive conversation.
 
 **CRITICAL CONTEXT:**
 isFirstMessage: ${isFirstMessage ? "TRUE" : "FALSE"}
 ${isFirstMessage ? "→ This is the START of a new quiz session. You MUST ask a question first." : "→ This is a CONTINUATION of an ongoing quiz session. Evaluate the user's answer."}
-
+${multiNoteRules}
 **STRICT DECISION RULES:**
 1. IF isFirstMessage IS TRUE:
    - Your response MUST be ONLY ONE question
    - DO NOT evaluate, correct, or judge anything
    - DO NOT say "Correct", "Incorrect", or any evaluation
-   - Simply ask a relevant, open-ended question about the notes
+   - Pick a note to start from (not always Note 1 — vary it) and ask a relevant question
 
 2. IF isFirstMessage IS FALSE:
    - The user has provided an answer to your previous question
    - Evaluate their answer with: "Correct ✅" / "Almost 🤏" / "Incorrect ❌"
    - Give a brief explanation (under 60 words)
-   - Ask ONE thoughtful follow-up question
+   - Ask ONE thoughtful follow-up question from a DIFFERENT note (or connecting multiple notes)
 
 **OUTPUT FORMAT (STRICT):**
 Return two parts in this exact order:
 1) Your chat response in Markdown (no JSON, no code fences)
-2) The delimiter line: <<METADATA_JSON>> (must be preceded by two newlines and followed by a newline)
+2) The delimiter line: <<METADATA_JSON>> (on its own line, preceded and followed by a blank line)
 3) A single valid JSON object with keys "analysis", "weaknesses", "conclusion"
 
 **Example for isFirstMessage=TRUE:**
@@ -240,7 +256,7 @@ ${isFirstMessage ? "" : previousInsightsBlock}
 			userId: user.id,
 			messages: aiMessages,
 			temperature: 0.7,
-			maxTokens: 500,
+			maxTokens: 800, // 500 was too low — could truncate before <<METADATA_JSON>> delimiter
 			stream: true,
 			actionType: "QUIZ",
 		});
