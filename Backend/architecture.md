@@ -16,6 +16,7 @@ N/A - Greenfield project.
 | 2026-02-01 | 0.2 | Finalized quota strategy, RLS policies, and migration structure | Winston (Architect) |
 | 2026-02-20 | 1.0 | Top-up only model: profiles.credits replaces user_credits, processed_stripe_events added, subscription model removed | Claude (Dev) |
 | 2026-02-21 | 1.1 | Pro subscription re-enabled: subscription_status + stripe_subscription_id added to profiles, consume_credit/add_credits RPCs fixed (PROFILES→PROFILE audit CHECK), webhook handlers for subscription events | Claude (Dev) |
+| 2026-02-21 | 1.2 | Email transactionnel via Resend: helper centralisé lib/email/send.ts, emails bienvenue/top-up/abonnement/résiliation; subscription management dans Settings (SubscriptionCard + DELETE /api/subscriptions) | Claude (Dev) |
 
 ## High Level Architecture
 
@@ -381,6 +382,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
+
+## Email Transactionnel (Resend)
+
+### Service
+**Provider:** [Resend](https://resend.com) — API email developer-first, SDK TypeScript natif.
+**Dépendance:** `resend@^6.9.2` (installé). Peer dependency `@react-email/render` disponible si besoin de templates React.
+
+### Helper centralisé
+**Fichier:** `src/lib/email/send.ts`
+
+Toutes les fonctions sont **fire-and-forget** (ne bloquent jamais le flux appelant) et sont **skippées silencieusement** si `RESEND_API_KEY` est absent — ce qui permet de développer sans configurer Resend.
+
+| Fonction | Déclencheur |
+| :--- | :--- |
+| `sendWelcomeEmail` | Auth callback, première connexion (`created_at < 2 min`) |
+| `sendTopUpEmail` | Webhook `checkout.session.completed` (mode payment) |
+| `sendSubscriptionWelcomeEmail` | Webhook `checkout.session.completed` (mode subscription) |
+| `sendSubscriptionCancelledEmail` | Webhook `customer.subscription.deleted` |
+
+### Variables d'environnement
+```env
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Echoflow <noreply@ton-domaine-verifie.com>
+```
+
+### Contrainte domaine expéditeur
+Resend exige que le domaine de l'adresse `From` soit **vérifié** (enregistrements SPF + DKIM ajoutés en DNS). Les sous-domaines Vercel (`*.vercel.app`) ne peuvent pas être utilisés comme expéditeur car on ne contrôle pas leur DNS.
+
+**Options :**
+- **Développement / test :** utiliser `onboarding@resend.dev` (domaine Resend pré-vérifié) — fonctionne immédiatement, mais les emails n'arrivent que sur l'adresse vérifiée dans le dashboard Resend.
+- **Production :** vérifier un domaine personnalisé dans Resend Dashboard → Domains → Add Domain (ex: `echoflow.app` ou `mail.echoflow.app`).
 
 ## Unified Project Structure
 

@@ -32,6 +32,7 @@ The user experience is centered on fluidity: from quick note-taking to intellige
 | 2026-01-23 | 0.9     | Added Epic 4 Details                      | John (PM) |
 | 2026-02-20 | 1.0     | Top-up only model: removed Pro/subscription, updated FR9/FR11, Story 4.1–4.2 | Claude (Dev) |
 | 2026-02-21 | 1.1     | Pro subscription re-enabled: Story 4.2 restored, subscription bypass in credit system, FR9 updated | Claude (Dev) |
+| 2026-02-21 | 1.2     | Email transactionnel Resend: bienvenue à l'inscription, confirmation top-up/abonnement, résiliation; gestion abonnement dans Settings (statut + résiliation) | Claude (Dev) |
 
 ## Requirements
 
