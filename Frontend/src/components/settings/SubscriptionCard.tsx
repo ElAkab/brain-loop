@@ -241,7 +241,7 @@ function SubscriptionDetails({
 					<Button
 						variant="outline"
 						size="sm"
-						className="text-destructive border-destructive/30 hover:bg-destructive/5"
+						className="text-destructive border-destructive/30 hover:bg-destructive/5 cursor-pointer dark:hover:text-primary"
 					>
 						Cancel subscription
 					</Button>
@@ -263,11 +263,13 @@ function SubscriptionDetails({
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Keep subscription</AlertDialogCancel>
+						<AlertDialogCancel className="cursor-pointer dark:hover:text-primary">
+							Keep subscription
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={onCancel}
 							disabled={cancelling}
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-destructive text-destructive-foreground dark:hover:text-red-900 cursor-pointer"
 						>
 							{cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
 							Yes, cancel
