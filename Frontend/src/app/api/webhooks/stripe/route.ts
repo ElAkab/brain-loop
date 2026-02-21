@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Resend } from "resend";
+import {
+	sendTopUpEmail,
+	sendSubscriptionWelcomeEmail,
+	sendSubscriptionCancelledEmail,
+} from "@/lib/email/send";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 	apiVersion: "2026-01-28.clover",
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-const resend = process.env.RESEND_API_KEY
-	? new Resend(process.env.RESEND_API_KEY)
-	: null;
 
 // ── Zod schemas for metadata validation ────────────────────────────────────
 
@@ -185,7 +185,15 @@ async function handleTopUpCompleted(
 			.eq("id", user_id);
 	}
 
-	await sendCreditEmail(supabase, user_id, creditAmount, newBalance);
+	// Email confirmation (fire-and-forget)
+	const { data: profile } = await supabase
+		.from("profiles")
+		.select("email, full_name")
+		.eq("id", user_id)
+		.maybeSingle();
+	if (profile?.email) {
+		sendTopUpEmail(profile.email, profile.full_name, creditAmount, newBalance).catch(() => {});
+	}
 }
 
 async function handleSubscriptionCheckoutCompleted(
@@ -227,6 +235,16 @@ async function handleSubscriptionCheckoutCompleted(
 	console.log(
 		`[Webhook] Subscription activated: user ${user_id}, sub ${subscriptionId}`,
 	);
+
+	// Email confirmation (fire-and-forget)
+	const { data: profile } = await supabase
+		.from("profiles")
+		.select("email, full_name")
+		.eq("id", user_id)
+		.maybeSingle();
+	if (profile?.email) {
+		sendSubscriptionWelcomeEmail(profile.email, profile.full_name).catch(() => {});
+	}
 }
 
 async function handleSubscriptionUpdated(
@@ -263,6 +281,13 @@ async function handleSubscriptionDeleted(
 	supabase: ReturnType<typeof createAdminClient>,
 	subscription: Stripe.Subscription,
 ) {
+	// Fetch profile BEFORE clearing stripe_subscription_id
+	const { data: profile } = await supabase
+		.from("profiles")
+		.select("email, full_name")
+		.eq("stripe_subscription_id", subscription.id)
+		.maybeSingle();
+
 	const { error } = await supabase
 		.from("profiles")
 		.update({ subscription_status: "cancelled", stripe_subscription_id: null })
@@ -274,6 +299,10 @@ async function handleSubscriptionDeleted(
 	}
 
 	console.log(`[Webhook] Subscription ${subscription.id} cancelled`);
+
+	if (profile?.email) {
+		sendSubscriptionCancelledEmail(profile.email, profile.full_name).catch(() => {});
+	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -294,39 +323,3 @@ async function markProcessed(
 	}
 }
 
-async function sendCreditEmail(
-	supabase: ReturnType<typeof createAdminClient>,
-	userId: string,
-	amount: number,
-	newBalance: number,
-) {
-	if (!resend) return;
-
-	const { data: profile } = await supabase
-		.from("profiles")
-		.select("email, full_name")
-		.eq("id", userId)
-		.maybeSingle();
-
-	if (!profile?.email) {
-		console.error("[Webhook] No email found for user:", userId);
-		return;
-	}
-
-	try {
-		await resend.emails.send({
-			from: "Echoflow <noreply@echoflow.app>",
-			to: profile.email,
-			subject: "Credits Added to Your Account",
-			html: `
-				<p>Hello ${profile.full_name || ""},</p>
-				<p><strong>${amount} credits</strong> have been added to your account.</p>
-				<p>New balance: <strong>${newBalance} credits</strong></p>
-				<p>Credits never expire — use them at your own pace.</p>
-				<p>Thank you for your support!</p>
-			`,
-		});
-	} catch (error) {
-		console.error("[Webhook] Error sending email:", error);
-	}
-}

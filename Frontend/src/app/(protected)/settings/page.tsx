@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { OpenRouterKeyCard } from '@/components/settings/OpenRouterKeyCard';
+import { SubscriptionCard } from '@/components/settings/SubscriptionCard';
 
 type SettingsPageProps = {
 	searchParams: Promise<{
@@ -27,6 +28,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </p>
       </div>
 
+      {/* Account Information */}
       <div className="rounded-lg border p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Account Information</h2>
@@ -53,6 +55,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </div>
       </div>
 
+      {/* Subscription */}
+      <SubscriptionCard />
+
+      {/* BYOK Key */}
       <div
         id="ai-key"
         className={`rounded-lg border p-2 ${showAiKeyFocus ? 'border-primary/60 ring-1 ring-primary/40' : ''}`}
@@ -60,6 +66,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         <OpenRouterKeyCard autoFocusInput={showAiKeyFocus} />
       </div>
 
+      {/* Danger Zone */}
       <div className="rounded-lg border border-destructive/50 p-6">
         <h2 className="text-lg font-semibold text-destructive">Danger Zone</h2>
         <p className="text-sm text-muted-foreground mt-1">
