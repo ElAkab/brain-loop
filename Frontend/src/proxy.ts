@@ -44,11 +44,11 @@ const redis = (() => {
 
 // Rate limiters configurés
 const rateLimiters = {
-	// Auth: Très strict (5 req / 15 min) - empêche brute force
+	// Auth: Strict (10 req / 15 min) - empêche brute force sur l'API OAuth
 	auth: redis
 		? new Ratelimit({
 				redis,
-				limiter: Ratelimit.slidingWindow(5, "15 m"),
+				limiter: Ratelimit.slidingWindow(10, "15 m"),
 				analytics: true,
 				prefix: "ratelimit:auth",
 			})
@@ -93,8 +93,15 @@ function getClientIp(request: NextRequest): string {
 
 function getRateLimiter(
 	pathname: string,
+	method: string,
 ): { limiter: typeof rateLimiters.general; name: string } | null {
-	if (pathname.startsWith("/api/auth/") || pathname.startsWith("/auth/")) {
+	// Rate-limit uniquement les routes API OAuth (pas les pages /auth/)
+	// Les pages /auth/login sont des pages HTML — les limiter bloquerait la navigation normale
+	// On rate-limit aussi les Server Actions (POST) sur /auth/ pour protéger contre le brute force
+	if (pathname.startsWith("/api/auth/")) {
+		return { limiter: rateLimiters.auth, name: "auth" };
+	}
+	if (pathname.startsWith("/auth/") && method === "POST") {
 		return { limiter: rateLimiters.auth, name: "auth" };
 	}
 	if (pathname.startsWith("/api/ai/")) {
@@ -135,7 +142,7 @@ export async function proxy(request: NextRequest) {
 	// ÉTAPE 1: Rate Limiting (appliqué à tous, même non authentifiés)
 	// ═══════════════════════════════════════════════════════════════════════════
 
-	const rateLimitConfig = getRateLimiter(pathname);
+	const rateLimitConfig = getRateLimiter(pathname, request.method);
 
 	if (rateLimitConfig && rateLimitConfig.limiter) {
 		const ip = getClientIp(request);
