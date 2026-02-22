@@ -14,7 +14,13 @@ export default function LoginPage() {
 	async function handleGoogleSignIn(e: React.FormEvent) {
 		e.preventDefault();
 		setLoading(true);
-		await signInWithGoogle();
+		const result = await signInWithGoogle();
+		if (result?.url) {
+			window.location.href = result.url;
+		} else if (result?.error) {
+			setMessage(result.error);
+			setLoading(false);
+		}
 	}
 
 	async function handleEmailSignIn(e: React.FormEvent<HTMLFormElement>) {
