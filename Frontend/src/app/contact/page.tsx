@@ -84,6 +84,7 @@ export default function ContactPage() {
 									type="text"
 									name="name"
 									required
+									autoComplete="name"
 									placeholder="Your name"
 									className="w-full px-4 py-3 rounded-lg bg-muted text-foreground border border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
 								/>
@@ -97,6 +98,7 @@ export default function ContactPage() {
 									type="email"
 									name="email"
 									required
+									autoComplete="email"
 									placeholder="your@email.com"
 									className="w-full px-4 py-3 rounded-lg bg-muted text-foreground border border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
 								/>
@@ -111,6 +113,7 @@ export default function ContactPage() {
 								id="message"
 								name="message"
 								required
+								autoComplete="off"
 								placeholder="Your message..."
 								rows={6}
 								maxLength={1000}
