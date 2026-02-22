@@ -41,7 +41,9 @@ export default function LoginPage() {
 	async function handleDemoSignIn(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		setLoading(true);
-		const password = new FormData(e.currentTarget).get("demoPassword") as string;
+		const password = new FormData(e.currentTarget).get(
+			"demoPassword",
+		) as string;
 		const result = await signInWithDemo(password);
 
 		if (result?.error) {
@@ -57,6 +59,14 @@ export default function LoginPage() {
 					<h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
 					<p className="text-gray-600">Sign in to continue learning</p>
 				</div>
+
+				{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
+					<div className="mb-6 px-4 py-3 rounded-lg bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-700/50 text-sm text-yellow-800 dark:text-yellow-300">
+						<span className="font-semibold">Version bêta</span> — Echoflow is in
+						active development. You may encounter some imperfections. Thank you
+						for your support !
+					</div>
+				)}
 
 				{message && (
 					<div

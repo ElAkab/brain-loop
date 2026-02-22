@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Settings, User, LogOut, FolderTree, Crown, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { signOut } from "@/lib/auth/actions";
 
@@ -32,9 +33,16 @@ export function Sidebar() {
 					className="h-10 w-10"
 				/>
 				<div>
-					<h1 className="text-2xl font-bold text-primary cursor-pointer">
-						Echoflow
-					</h1>
+					<div className="flex items-center gap-2">
+						<h1 className="text-2xl font-bold text-primary cursor-pointer">
+							Echoflow
+						</h1>
+						{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
+							<Badge className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700 hover:bg-yellow-100">
+								BETA
+							</Badge>
+						)}
+					</div>
 					<p className="text-sm text-muted-foreground">
 						Active Recall Learning
 					</p>
