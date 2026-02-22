@@ -1,10 +1,7 @@
 "use client";
 
-import {
-	signInWithGoogle,
-	signInWithEmail,
-	signInWithDemo,
-} from "@/lib/auth/actions";
+import { signInWithEmail, signInWithDemo } from "@/lib/auth/actions";
+import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -14,13 +11,18 @@ export default function LoginPage() {
 	async function handleGoogleSignIn(e: React.FormEvent) {
 		e.preventDefault();
 		setLoading(true);
-		const result = await signInWithGoogle();
-		if (result?.url) {
-			window.location.href = result.url;
-		} else if (result?.error) {
-			setMessage(result.error);
+		const supabase = createClient();
+		const { error } = await supabase.auth.signInWithOAuth({
+			provider: "google",
+			options: {
+				redirectTo: `${window.location.origin}/auth/callback`,
+			},
+		});
+		if (error) {
+			setMessage(error.message);
 			setLoading(false);
 		}
+		// Supabase gère la redirection automatiquement si pas d'erreur
 	}
 
 	async function handleEmailSignIn(e: React.FormEvent<HTMLFormElement>) {

@@ -4,27 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers"; // To get request headers
 
-export async function signInWithGoogle() {
-	const supabase = await createClient();
-	const origin = (await headers()).get("origin");
-
-	const { data, error } = await supabase.auth.signInWithOAuth({
-		provider: "google",
-		options: {
-			redirectTo: `${origin}/auth/callback`,
-		},
-	});
-
-	if (error) {
-		console.error("Google OAuth error:", error);
-		return { error: error.message };
-	}
-
-	if (data.url) {
-		return { url: data.url };
-	}
-}
-
 // Sign in using email magic link
 export async function signInWithEmail(formData: FormData) {
 	const supabase = await createClient(); // Create a Supabase client instance
@@ -96,7 +75,7 @@ export async function signInWithDemo(providedPassword: string) {
 		return { error: "Invalid demo password" };
 	}
 
-	const { data, error } = await supabase.auth.signInWithPassword({
+	const { error } = await supabase.auth.signInWithPassword({
 		email: "demo@echoflow.app",
 		password: process.env.DEMO_ACCOUNT_PASSWORD || "",
 	});
