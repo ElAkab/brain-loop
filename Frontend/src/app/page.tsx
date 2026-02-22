@@ -16,9 +16,11 @@ export default function HomePage() {
 							className="h-28 w-28"
 						/>
 					</div>
-					<Badge className="absolute -top-3 right-0 z-10 px-2 py-0.5 text-[10px] tracking-widest font-semibold bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40 hover:bg-primary/10">
-						BETA
-					</Badge>
+					<div className="flex justify-center mt-1 md:contents">
+						<Badge className="md:absolute md:-top-3 md:right-0 md:z-10 px-2 py-0.5 text-[10px] tracking-widest font-semibold bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40 hover:bg-primary/10">
+							BETA
+						</Badge>
+					</div>
 				</div>
 
 				<p className="text-xl md:text-2xl text-gray-400 mb-4">
