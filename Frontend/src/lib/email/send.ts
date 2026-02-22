@@ -14,7 +14,8 @@ const resend = process.env.RESEND_API_KEY
 	? new Resend(process.env.RESEND_API_KEY)
 	: null;
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "Echoflow <noreply@echoflow-app.com>";
+const FROM =
+	process.env.RESEND_FROM_EMAIL ?? "Echoflow <noreply@echoflow-app.com>";
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://echoflow-app.com";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ export async function sendWelcomeEmail(to: string, name?: string | null) {
 		<p>Your account is ready. You start with <strong>20 free quizzes per day</strong> — no credit card needed.</p>
 		<p>When you're ready to go further, premium credits unlock GPT-4o and Mistral 7B.</p>
 		<p><a href="${SITE_URL}/dashboard">Start learning →</a></p>
-		<p>— The Echoflow team</p>
+		<p>The Echoflow team</p>
 		`,
 	);
 }
@@ -109,7 +110,7 @@ export async function sendSubscriptionWelcomeEmail(
 				year: "numeric",
 				month: "long",
 				day: "numeric",
-		  })
+			})
 		: null;
 
 	await send(
@@ -120,7 +121,7 @@ export async function sendSubscriptionWelcomeEmail(
 		<p>Your <strong>Pro subscription</strong> is now active — enjoy unlimited premium quizzes.</p>
 		${renewal ? `<p>Your subscription renews on <strong>${renewal}</strong>. You can manage or cancel it anytime from your settings.</p>` : ""}
 		<p><a href="${SITE_URL}/dashboard">Start learning →</a></p>
-		<p>— The Echoflow team</p>
+		<p>The Echoflow team</p>
 		`,
 	);
 }
@@ -167,14 +168,16 @@ export async function sendContactEmail(opts: {
 		<blockquote style="border-left:3px solid #ccc;padding-left:1rem;color:#555;">
 			${message.replace(/\n/g, "<br/>")}
 		</blockquote>
-		<p>— The Echoflow team</p>
+		<p>The Echoflow team</p>
 		<p><a href="${SITE_URL}">echoflow-app.com</a></p>
 		`,
 		{ throwOnError: true },
 	);
 
 	if (!ok) {
-		throw new Error("Email delivery failed — RESEND_API_KEY may not be configured");
+		throw new Error(
+			"Email delivery failed — RESEND_API_KEY may not be configured",
+		);
 	}
 }
 
@@ -191,7 +194,7 @@ export async function sendSubscriptionCancelledEmail(
 				year: "numeric",
 				month: "long",
 				day: "numeric",
-		  })
+			})
 		: null;
 
 	await send(
