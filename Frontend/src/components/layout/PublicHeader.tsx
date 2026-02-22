@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Menu } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Sheet,
@@ -35,6 +36,9 @@ export function PublicHeader() {
 					alt="Echoflow Logo"
 					className="h-10 w-10 md:h-12 md:w-12"
 				/>
+				<Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40 hover:bg-primary/10">
+					BETA
+				</Badge>
 			</div>
 
 			{/* Desktop nav */}

@@ -37,11 +37,9 @@ export function Sidebar() {
 						<h1 className="text-2xl font-bold text-primary cursor-pointer">
 							Echoflow
 						</h1>
-						{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
-							<Badge className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700 hover:bg-yellow-100">
-								BETA
-							</Badge>
-						)}
+						<Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40 hover:bg-primary/10">
+							BETA
+						</Badge>
 					</div>
 					<p className="text-sm text-muted-foreground">
 						Active Recall Learning

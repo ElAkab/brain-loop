@@ -60,13 +60,11 @@ export default function LoginPage() {
 					<p className="text-gray-600">Sign in to continue learning</p>
 				</div>
 
-				{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
-					<div className="mb-6 px-4 py-3 rounded-lg bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-700/50 text-sm text-yellow-800 dark:text-yellow-300">
-						<span className="font-semibold">Version bêta</span> — Echoflow is in
-						active development. You may encounter some imperfections. Thank you
-						for your support !
-					</div>
-				)}
+				<div className="mb-6 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 dark:bg-primary/10 dark:border-primary/30 text-sm text-primary/80 dark:text-primary/70">
+					<span className="font-semibold">Version bêta</span> — Echoflow is in
+					active development. You may encounter some imperfections. Thank you
+					for your support !
+				</div>
 
 				{message && (
 					<div

@@ -45,20 +45,18 @@ export function Header() {
 					<h1 className="text-xl font-bold text-primary bg-gradient-to-tr dark:from-primary to-[#053f61] bg-clip-text text-transparent cursor-pointer">
 						Echoflow
 					</h1>
+					<Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40">
+						BETA
+					</Badge>
 				</div>
 
 				{/* Spacer (Desktop) */}
 				<div className="hidden md:flex md:flex-1" />
 
-				{/* BETA badge (controlled by NEXT_PUBLIC_APP_STATUS env var) */}
-				{process.env.NEXT_PUBLIC_APP_STATUS === "beta" && (
-					<Badge
-						variant="secondary"
-						className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
-					>
-						BETA
-					</Badge>
-				)}
+				{/* BETA badge — visible sur desktop uniquement (la sidebar l'affiche déjà) */}
+				<Badge className="hidden md:inline-flex text-xs bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40">
+					BETA
+				</Badge>
 
 				{/* Credit Balance */}
 				<CreditDisplay />
