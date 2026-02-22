@@ -20,11 +20,17 @@ interface Props {
 
 export function PaymentSuccessContent({ isSubscription, sessionId }: Props) {
 	const refreshCredits = useCreditsStore((state) => state.refreshCredits);
-	const [syncing, setSyncing] = useState(isSubscription && !!sessionId);
+	const [syncing, setSyncing] = useState(!!sessionId);
 	const [syncError, setSyncError] = useState(false);
 
 	useEffect(() => {
-		if (isSubscription && sessionId) {
+		if (!sessionId) {
+			setSyncing(false);
+			refreshCredits();
+			return;
+		}
+
+		if (isSubscription) {
 			// Subscription: verify the Stripe session and activate in DB
 			// (fallback in case the webhook fires with a delay)
 			fetch("/api/subscriptions/sync", {
@@ -44,8 +50,24 @@ export function PaymentSuccessContent({ isSubscription, sessionId }: Props) {
 					refreshCredits();
 				});
 		} else {
-			// Top-up: just refresh the credit balance
-			refreshCredits();
+			// Top-up: verify payment and add credits directly as fallback
+			// (in case the Stripe webhook fires with a delay)
+			fetch("/api/credits/sync", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ session_id: sessionId }),
+			})
+				.then((r) => r.json())
+				.then((data) => {
+					if (!data.credited && !data.devMode) {
+						setSyncError(true);
+					}
+				})
+				.catch(() => setSyncError(true))
+				.finally(() => {
+					setSyncing(false);
+					refreshCredits();
+				});
 		}
 	}, [isSubscription, sessionId, refreshCredits]);
 
@@ -57,11 +79,15 @@ export function PaymentSuccessContent({ isSubscription, sessionId }: Props) {
 						<div className="rounded-full bg-primary/10 p-3">
 							<Loader2 className="h-10 w-10 text-primary animate-spin" />
 						</div>
-						<CardTitle className="text-2xl">Activating your Pro Plan…</CardTitle>
+						<CardTitle className="text-2xl">
+							{isSubscription ? "Activating your Pro Plan…" : "Adding your credits…"}
+						</CardTitle>
 					</CardHeader>
 					<CardContent>
 						<p className="text-muted-foreground">
-							Confirming your subscription with Stripe, just a moment.
+							{isSubscription
+								? "Confirming your subscription with Stripe, just a moment."
+								: "Confirming your payment with Stripe, just a moment."}
 						</p>
 					</CardContent>
 				</Card>
@@ -105,12 +131,15 @@ export function PaymentSuccessContent({ isSubscription, sessionId }: Props) {
 					<div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
 						<CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
 					</div>
-					<CardTitle className="text-2xl">Credits Added!</CardTitle>
+					<CardTitle className="text-2xl">
+						{syncError ? "Payment received!" : "Credits Added!"}
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<p className="text-muted-foreground">
-						Your credits have been added to your account. You can now generate
-						more AI quizzes!
+						{syncError
+							? "Your payment was successful. Your credits will appear in your account shortly."
+							: "Your credits have been added to your account. You can now generate more AI quizzes!"}
 					</p>
 				</CardContent>
 				<CardFooter className="flex justify-center pt-2">
