@@ -54,9 +54,9 @@ export function Header() {
 				<div className="hidden md:flex md:flex-1" />
 
 				{/* BETA badge — visible sur desktop uniquement (la sidebar l'affiche déjà) */}
-				<Badge className="hidden md:inline-flex text-xs bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40">
+				{/* <Badge className="hidden md:inline-flex text-xs bg-primary/10 text-primary border border-primary/30 dark:bg-primary/20 dark:border-primary/40">
 					BETA
-				</Badge>
+				</Badge> */}
 
 				{/* Credit Balance */}
 				<CreditDisplay />

@@ -61,9 +61,8 @@ export default function LoginPage() {
 				</div>
 
 				<div className="mb-6 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 dark:bg-primary/10 dark:border-primary/30 text-sm text-primary/80 dark:text-primary/70">
-					<span className="font-semibold">Version bêta</span> — Echoflow is in
-					active development. You may encounter some imperfections. Thank you
-					for your support !
+					<span className="font-semibold">Beta Version </span> — Echoflow is in
+					active development. You may encounter some imperfections.
 				</div>
 
 				{message && (
