@@ -125,10 +125,12 @@ export function QuestionGenerator({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open]);
 
-	// Track dialog open state for save-on-close
+	// Track dialog open state for save-on-close + feedback trigger.
+	// Runs on every close path: Close button, Radix X, Escape, backdrop click.
 	useEffect(() => {
 		if (wasOpenRef.current && !isOpen) {
 			saveSession();
+			useFeedbackStore.getState().triggerFeedback();
 		}
 		wasOpenRef.current = isOpen;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,10 +192,6 @@ export function QuestionGenerator({
 	const setOpen = (val: boolean) => {
 		if (onOpenChange) onOpenChange(val);
 		if (open === undefined) setIsOpen(val);
-
-		if (!val) {
-			useFeedbackStore.getState().triggerFeedback();
-		}
 	};
 
 	const processStream = async (
