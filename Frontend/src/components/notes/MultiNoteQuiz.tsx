@@ -307,9 +307,12 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 	// Handle close with proper async save
 	const handleClose = async () => {
 		if (isSaving) return;
+
+		// Refresh immediately — credit was consumed server-side on first message
+		refreshCredits();
+
 		// Don't save if the user never answered anything
 		if (!messages.some((m) => m.role === "user")) {
-			refreshCredits();
 			useFeedbackStore.getState().triggerFeedback();
 			onClose();
 			return;
@@ -343,9 +346,6 @@ export function MultiNoteQuiz({ noteIds, onClose }: MultiNoteQuizProps) {
 		} catch (error) {
 			console.error("Failed to save study session:", error);
 		} finally {
-			// Always refresh credits on close — credit was consumed server-side
-			// on the first message regardless of whether session saving succeeded.
-			refreshCredits();
 			setIsSaving(false);
 			useFeedbackStore.getState().triggerFeedback();
 			onClose();

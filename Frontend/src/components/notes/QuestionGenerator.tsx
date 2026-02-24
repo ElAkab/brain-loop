@@ -127,8 +127,11 @@ export function QuestionGenerator({
 
 	// Track dialog open state for save-on-close + feedback trigger.
 	// Runs on every close path: Close button, Radix X, Escape, backdrop click.
+	// refreshCredits() is called immediately so the UI updates without waiting
+	// for the async session save (credit was already consumed on first message).
 	useEffect(() => {
 		if (wasOpenRef.current && !isOpen) {
+			refreshCredits();
 			saveSession();
 			useFeedbackStore.getState().triggerFeedback();
 		}
@@ -174,10 +177,6 @@ export function QuestionGenerator({
 			console.error("Failed to save study session:", error);
 			hasSavedRef.current = false;
 		} finally {
-			// Always refresh credits on close when a session was started —
-			// the credit was consumed server-side on the first message regardless
-			// of whether session saving succeeded.
-			refreshCredits();
 			setIsSaving(false);
 		}
 	}, [
@@ -186,7 +185,6 @@ export function QuestionGenerator({
 		currentModel,
 		currentKeySource,
 		sessionStartTime,
-		refreshCredits,
 	]);
 
 	const setOpen = (val: boolean) => {
