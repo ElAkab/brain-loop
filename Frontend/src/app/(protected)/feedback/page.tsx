@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { PageTransition } from "@/components/ui/page-transition";
 import {
 	Card,
 	CardContent,
@@ -82,6 +83,7 @@ export default function FeedbackPage() {
 	};
 
 	return (
+		<PageTransition>
 		<div className="container mx-auto py-8 max-w-5xl">
 			<div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
 				<div>
@@ -158,5 +160,6 @@ export default function FeedbackPage() {
 				</div>
 			)}
 		</div>
+		</PageTransition>
 	);
 }

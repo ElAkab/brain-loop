@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export default function ContactPage() {
 	const [status, setStatus] = useState<
@@ -51,6 +52,7 @@ export default function ContactPage() {
 	}
 
 	return (
+		<PageTransition>
 		<main className="min-h-screen pb-8 bg-gradient-to-b dark:from-gray-900 dark:to-gray-800">
 			<PublicHeader />
 
@@ -150,5 +152,6 @@ export default function ContactPage() {
 				)}
 			</div>
 		</main>
+		</PageTransition>
 	);
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export const metadata = {
 	title: "Features — Echoflow",
@@ -40,6 +41,7 @@ const features = [
 
 export default function FeaturesPage() {
 	return (
+		<PageTransition>
 		<main className="min-h-screen bg-gradient-to-b dark:from-gray-900 dark:to-gray-800">
 			<PublicHeader />
 
@@ -91,5 +93,6 @@ export default function FeaturesPage() {
 				</div>
 			</section>
 		</main>
+		</PageTransition>
 	);
 }

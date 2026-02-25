@@ -3,6 +3,7 @@
 import { useState } from "react";
 import CategoryForm from "@/components/CategoryForm";
 import CategoryList from "@/components/CategoryList";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export default function CategoriesPage() {
 	const [refreshKey, setRefreshKey] = useState(0);
@@ -12,6 +13,7 @@ export default function CategoriesPage() {
 	};
 
 	return (
+		<PageTransition>
 		<div className="space-y-8">
 			<div>
 				<h1 className="text-3xl font-bold mb-2">Categories</h1>
@@ -34,5 +36,6 @@ export default function CategoriesPage() {
 				</div>
 			</div>
 		</div>
+		</PageTransition>
 	);
 }

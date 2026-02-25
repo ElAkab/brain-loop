@@ -3,6 +3,7 @@
 import { signInWithEmail, signInWithDemo } from "@/lib/auth/actions";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export default function LoginPage() {
 	const [message, setMessage] = useState("");
@@ -53,6 +54,7 @@ export default function LoginPage() {
 	}
 
 	return (
+		<PageTransition>
 		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 p-4">
 			<div className="w-full max-w-md p-8 rounded-2xl shadow-xl">
 				<div className="text-center mb-8">
@@ -178,5 +180,6 @@ export default function LoginPage() {
 				</p>
 			</div>
 		</div>
+		</PageTransition>
 	);
 }

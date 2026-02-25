@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { PageTransition } from "@/components/ui/page-transition";
 
 export const metadata = {
 	title: "Learn More — Echoflow",
@@ -7,6 +8,7 @@ export const metadata = {
 
 export default function LearnMorePage() {
 	return (
+		<PageTransition>
 		<main className="min-h-screen pb-12 bg-gradient-to-b dark:from-gray-900 dark:to-gray-800">
 			<PublicHeader />
 			<div className="max-w-4xl mx-auto px-8 mt-12">
@@ -166,5 +168,6 @@ export default function LearnMorePage() {
 				</section>
 			</div>
 		</main>
+		</PageTransition>
 	);
 }

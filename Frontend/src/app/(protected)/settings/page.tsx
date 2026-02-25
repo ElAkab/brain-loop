@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { OpenRouterKeyCard } from '@/components/settings/OpenRouterKeyCard';
 import { SubscriptionCard } from '@/components/settings/SubscriptionCard';
+import { PageTransition } from '@/components/ui/page-transition';
 
 type SettingsPageProps = {
 	searchParams: Promise<{
@@ -20,6 +21,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
@@ -74,5 +76,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </p>
       </div>
     </div>
+    </PageTransition>
   );
 }
