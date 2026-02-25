@@ -1,184 +1,157 @@
-# Echoflow - AI-Powered Active Recall Learning Platform
+# Echoflow — AI-Powered Active Recall
 
-![Echoflow Logo](../Frontend/public/images/echoflow_logo.png)
-
-**Transform your notes into knowledge through AI-driven active recall.**
-
-Echoflow helps students and lifelong learners solidify concepts by turning passive note-taking into active learning sessions powered by AI.
-
----
-
-## 📖 Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Getting Started](#getting-started)
-- [Development](#development)
-- [Deployment](#deployment)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
+<div align="center">
+  <img src="Frontend/public/images/echoflow_logo.png" alt="Echoflow" height="120" />
+  <br/>
+  <strong>Transform your notes into knowledge — one question at a time.</strong>
+  <br/><br/>
+  <a href="https://echoflow-app.com">Live Demo</a> · <a href="#getting-started">Get Started</a>
+</div>
 
 ---
 
-## 🎯 Overview
+## Why I built this
 
-Echoflow addresses a common learning problem: **we take notes, but rarely review them effectively.**
+I had a bad habit I couldn't shake: re-reading my notes over and over, feeling like I understood everything — and then blanking when it actually mattered.
 
-### The Problem
+Turns out there's a name for that feeling: the **illusion of competence**. Passive review gives you the sensation of learning without building the neural pathways that make knowledge stick. The research is clear — what actually works is **active recall**: forcing your brain to retrieve information rather than just recognise it.
 
-- Students create detailed notes but struggle to retain information
-- Traditional review methods are passive and ineffective
-- No personalized feedback on knowledge gaps
+I wanted a tool that would take my notes and turn them into a real challenge. Not generic flashcards. Not a quiz generator that ignores context. An AI that reads *my* notes, asks *me* the hard questions, and remembers where I struggled last time.
 
-### The Solution
-
-Echoflow uses AI to:
-
-- Generate contextual questions based on your notes
-- Engage you in conversational learning sessions
-- Track your progress and identify weak areas
-- Provide adaptive follow-up questions
+So I built it.
 
 ---
 
-## ✨ Key Features
+## How it was built
 
-### Core Functionality (MVP)
+I won't pretend this was written entirely by hand. I had access to some of the best AI development tools available — and I used them intentionally.
 
-- **📝 Note Management**: Organize notes by category with Markdown support
-- **🤖 AI Questioning**: Get quizzed on individual or multiple notes
-- **💬 Conversational Learning**: Chat with AI to deepen understanding
-- **📊 Progress Tracking**: Monitor study sessions and performance
-- **🎨 Beautiful UI**: Clean, modern interface with TailwindCSS 4.0
+The real work was knowing *what* to build, *how* to structure it, and *when* the AI was wrong. The tools amplified what I already knew; they didn't replace the thinking. That's the only honest way to describe it: the best instruments I could find, multiplied by whatever I bring to the table.
 
-### Advanced Features
-
-- **Multi-note Context**: Quiz across related topics for better retention
-- **Adaptive Difficulty**: AI adjusts based on your responses
-- **Study Analytics**: Visualize learning patterns and weak points
-- **Freemium Model**: Free tier with weekly hint quota, premium for unlimited access
+The result is a production-ready app — auth, payments, AI streaming, credit system, subscriptions — built by one person in a few weeks.
 
 ---
 
-## 🛠️ Tech Stack
+## Features
 
-### Frontend
+### Category Creation
+Create custom categories with icons and colors to visually organize your knowledge base.
 
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript (strict mode)
-- **Styling**: TailwindCSS 4.0 + shadcn/ui
-- **State Management**: Zustand
-- **Markdown**: react-markdown + remark-gfm
+### Markdown Notes
+Write rich notes with full Markdown support (code blocks, lists, headers) — structure that the AI reads and respects when generating questions.
 
-### Backend
+### LLM-Powered Interactive Quizzes
+Launch quizzes in a chat-based format powered by an LLM, dynamically generated from your own notes. Not generic. Not random. Yours.
 
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth (Google OAuth + Magic Links)
-- **AI Gateway**: OpenRouter (with model rotation for free tier)
-- **API**: Next.js API Routes (BFF pattern)
+### Multi-Note Selection
+Combine multiple notes to give the AI broader context — ideal for subjects where everything connects.
 
-### Infrastructure
-
-- **Hosting**: Vercel
-- **Package Manager**: pnpm
-- **Version Control**: Git + GitHub
+### Intelligent Session Tracking
+The model remembers your previous sessions: what you struggled with, what you got right, and how to push you further next time.
 
 ---
 
-## 🏗️ Architecture
+## Workflow
 
-### Database Schema
+### BMad Methodology
+
+Every feature in this project followed the same loop:
 
 ```
-users (Supabase Auth)
-  └─ profiles (user_id, email, created_at, updated_at)
-
-categories
-  ├─ id (uuid)
-  ├─ user_id (fk → profiles)
-  ├─ name (text)
-  ├─ color (text)
-  └─ created_at, updated_at
-
-notes
-  ├─ id (uuid)
-  ├─ category_id (fk → categories)
-  ├─ user_id (fk → profiles)
-  ├─ title (text)
-  ├─ content (text, Markdown)
-  └─ created_at, updated_at
-
-study_sessions
-  ├─ id (uuid)
-  ├─ user_id (fk → profiles)
-  ├─ category_id (fk → categories, nullable)
-  ├─ note_ids (uuid[], array of note IDs)
-  ├─ conversation (jsonb, chat history)
-  ├─ model_used (text)
-  ├─ ai_feedback (jsonb, analysis + conclusion)
-  ├─ duration_seconds (integer)
-  └─ created_at
+Brief    → Define the problem and acceptance criteria clearly
+Model    → Design the data model and component architecture
+Act      → Implement with tests in mind
+Deploy   → Push to staging, verify in production
+Evaluate → Review, measure, iterate
 ```
 
-### AI Integration Flow
+No feature was built without first writing down what "done" means. This kept scope tight and made AI assistance far more effective — an AI given a clear brief produces dramatically better output than one given a vague request.
 
-1. **User initiates quiz** → API route receives note(s) + optional previous feedback
-2. **OpenRouter API call** → Premium-first model routing (shared platform key first, BYOK fallback)
-3. **Streaming response** → JSON format: `{ chat_response, analysis, weaknesses, conclusion }`
-4. **Frontend parsing** → Displays only `chat_response`, stores full JSON
-5. **Session tracking** → Saves conversation + AI feedback to `study_sessions`
-6. **Adaptive learning** → Next quiz uses previous `conclusion` for context
+### GitHub Copilot as Co-Developer
 
-### Premium-First Routing Strategy
+The [`.github/copilot-instructions.md`](.github/copilot-instructions.md) file is the backbone of how AI assistance works in this project. It defines:
 
-```typescript
-const PREMIUM_MODELS = [
-	"openai/gpt-4o-mini:paid",
-	"mistralai/mistral-7b-instruct:paid",
-];
+- **Hard constraints**: `pnpm` only, strict TypeScript, no `any`, Server Components by default
+- **Patterns**: BFF API routes, Zod validation everywhere, RLS on every table
+- **Quality gates**: E2E tests first (Playwright), conventional commits, no cutting corners on security
+- **Naming and structure**: so every AI suggestion fits naturally into the codebase
 
-const FALLBACK_MODELS = [
-	"meta-llama/llama-3.3-70b-instruct:free",
-	"qwen/qwen-3-235b-a22b:free",
-];
-
-// Key order: platform key first, then user BYOK key
-// Hard daily cap can block platform key and force BYOK / upgrade path
-```
+The result: every piece of AI-generated code follows the same standards as hand-written code, because the AI was told exactly what those standards are.
 
 ---
 
-## 🚀 Getting Started
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript 5 (strict) |
+| Styling | Tailwind CSS 4.0 + shadcn/ui |
+| Animations | Framer Motion |
+| State | Zustand |
+| Auth | Supabase Auth (Google OAuth + Magic Link) |
+| Database | Supabase (PostgreSQL + RLS) |
+| AI Gateway | OpenRouter (streaming, premium-first routing) |
+| Payments | Stripe (credits + subscriptions) |
+| Email | Resend |
+| Rate Limiting | Upstash Redis |
+| Hosting | Vercel |
+| Package Manager | pnpm |
+
+---
+
+## Architecture
+
+### AI Routing Strategy
+
+The app uses a **premium-first** model routing strategy:
+
+```
+Platform key (GPT-4o-mini / Mistral-7B paid)
+  └─ Daily request cap reached?
+       └─ User BYOK key (encrypted, stored per-user)
+            └─ No BYOK?
+                 └─ Free tier fallback (LLaMA 3.3, Qwen, Gemma)
+```
+
+This keeps costs controlled while giving paid users a consistently better experience.
+
+### Credit System
+
+- **Free tier**: 20 quiz sessions/day, auto-reset at midnight
+- **Top-up**: one-time credit purchases via Stripe
+- **Pro subscription**: unlimited daily sessions via Stripe subscription
+
+### Database Schema (simplified)
+
+```
+profiles ──< categories ──< notes
+                               └── study_sessions (conversation_history, ai_feedback)
+
+user_credits    (daily_credits, paid_credits, last_reset)
+user_ai_keys    (encrypted BYOK key per user)
+feedback        (rating, comment — anonymous)
+```
+
+All tables use Row-Level Security. Users can only ever read and write their own data.
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 20.x+
-- pnpm 9.x+
-- Supabase account
+- Node.js 20+
+- pnpm 9+
+- Supabase project
 - OpenRouter API key
 
 ### Installation
 
-1. **Clone the repository**
-
 ```bash
 git clone https://github.com/ElAkab/echoflow.git
-cd echoflow
-```
-
-2. **Install dependencies**
-
-```bash
-cd Frontend
+cd echoflow/Frontend
 pnpm install
-```
-
-3. **Set up environment variables**
-
-```bash
 cp .env.example .env.local
 ```
 
@@ -186,207 +159,72 @@ Edit `.env.local`:
 
 ```env
 # Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # OpenRouter
-OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_DEV_API_KEY=your_openrouter_dev_key
-OPENROUTER_PROD_API_KEY=your_openrouter_prod_key
+OPENROUTER_API_KEY=
 OPENROUTER_PREMIUM_MODELS=openai/gpt-4o-mini:paid,mistralai/mistral-7b-instruct:paid
-OPENROUTER_FALLBACK_MODELS=meta-llama/llama-3.3-70b-instruct:free,qwen/qwen-3-235b-a22b:free,mistralai/mistral-small-3.1-24b:free,google/gemma-3-4b-instruct:free
+OPENROUTER_FALLBACK_MODELS=meta-llama/llama-3.3-70b-instruct:free,qwen/qwen-3-235b-a22b:free
 
-# BYOK + budget guardrail
-BYOK_ENCRYPTION_SECRET=your_32_byte_secret
-OPENROUTER_PLATFORM_DAILY_REQUEST_LIMIT=250
-OPENROUTER_PLATFORM_SOFT_LIMIT_RATIO=0.9
+# BYOK encryption
+BYOK_ENCRYPTION_SECRET=
+
+# Payments
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+
+# Email
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-4. **Run database migrations**
+### Database
 
-- Go to Supabase Dashboard → SQL Editor
-- Execute files in `/Backend/migrations/` in order
-
-5. **Start development server**
+Run migrations in order from `Backend/migrations/` via the Supabase SQL Editor, then:
 
 ```bash
 pnpm dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000)
+---
+
+## Deployment
+
+**Vercel** (recommended):
+- Root directory: `Frontend`
+- Build command: `pnpm build`
+- Install command: `pnpm install`
+- Add all env vars in the Vercel dashboard
+
+Pushes to `main` deploy automatically.
 
 ---
 
-## 💻 Development
+## Roadmap
 
-### Project Structure
-
-```
-echoflow/
-├── Frontend/
-│   ├── src/
-│   │   ├── app/                # Next.js App Router
-│   │   │   ├── (protected)/    # Authenticated routes
-│   │   │   ├── api/            # API routes
-│   │   │   └── auth/           # Auth pages
-│   │   ├── components/         # React components
-│   │   │   ├── ui/             # shadcn components
-│   │   │   ├── notes/          # Note-related components
-│   │   │   └── dashboard/      # Dashboard components
-│   │   └── lib/                # Utilities & configs
-│   └── public/                 # Static assets
-├── Backend/
-│   ├── migrations/             # SQL migrations
-│   └── architecture.md         # Backend docs
-└── docs/
-    ├── prd.md                  # Product requirements
-    └── project-brief.md        # Project overview
-```
-
-### Development Workflow
-
-1. **Create a feature branch**
-
-```bash
-git checkout -b feature/your-feature
-```
-
-2. **Follow BMade methodology**
-
-- **Brief**: Define the feature clearly
-- **Model**: Design architecture/schema
-- **Act**: Implement with tests
-- **Deploy**: Push to staging
-- **Evaluate**: Review and iterate
-
-3. **Commit conventions**
-
-```
-feat(notes): add markdown preview
-fix(auth): resolve OAuth callback error
-docs(readme): update installation steps
-```
-
-4. **Run tests** (when available)
-
-```bash
-pnpm test
-```
+- [x] Auth (Google OAuth + Magic Link)
+- [x] Notes + Categories (Markdown, CRUD)
+- [x] Single-note and multi-note AI quiz
+- [x] Study session tracking + AI feedback
+- [x] Credit system (free tier + paid top-up)
+- [x] Stripe subscriptions (Pro plan)
+- [x] BYOK (Bring Your Own OpenRouter Key)
+- [x] Anonymous user feedback
+- [x] Email system (welcome, receipts, contact)
+- [ ] Spaced repetition scheduling
+- [ ] Session history and progress charts
+- [ ] Weak-area identification dashboard
 
 ---
 
-## 🌐 Deployment
-
-### Vercel (Recommended)
-
-1. **Push to GitHub**
-
-```bash
-git push origin main
-```
-
-2. **Import project in Vercel**
-
-- Root Directory: `Frontend`
-- Build Command: `pnpm build`
-- Install Command: `pnpm install`
-
-3. **Configure environment variables**
-
-- Add all `.env.local` variables to Vercel dashboard
-
-4. **Deploy**
-
-- Automatic deployments on push to `main`
-
-### Database (Supabase)
-
-- Already hosted on Supabase cloud
-- Run migrations manually via SQL Editor
-- Enable RLS policies for security
-
----
-
-## 🗺️ Roadmap
-
-### Phase 1: MVP ✅
-
-- [x] User authentication (Google OAuth + Magic Link)
-- [x] Note CRUD with categories
-- [x] Single-note AI questioning
-- [x] Multi-note quiz mode
-- [x] Markdown support
-- [x] Study session tracking
-
-### Phase 2: Analytics 🚧
-
-- [ ] Dashboard with progress charts
-- [ ] Performance insights per category
-- [ ] Weak area identification
-- [ ] Study streak tracking
-
-### Phase 3: Premium Features
-
-- [ ] Unlimited AI interactions
-- [ ] Advanced analytics
-- [ ] Conversation history access
-- [ ] Custom AI system prompts
-- [ ] Spaced repetition algorithm
-
-### Phase 4: Collaboration
-
-- [ ] Share notes with peers
-- [ ] Group study sessions
-- [ ] Public note library
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with clear commits
-4. Submit a pull request
-
-### Code Style
-
-- Use TypeScript strict mode
-- Follow existing code patterns
-- Add comments for complex logic only
-- Run `pnpm lint` before committing
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- **GitHub Copilot CLI**: For enabling vibe-driven development
-- **BMade Method**: For structured project planning
-- **OpenRouter**: For free-tier AI model access
-- **Supabase**: For backend infrastructure
-- **Next.js Team**: For an amazing framework
-
----
-
-## 📬 Contact
+## Contact
 
 **Adam El Akab**
-
 - GitHub: [@ElAkab](https://github.com/ElAkab)
-- Project Link: [https://github.com/ElAkab/echoflow](https://github.com/ElAkab/echoflow)
-- Live Demo: [https://echoflow.vercel.app](https://echoflow-phi.vercel.app)
-
----
-
-**Made with ❤️ and a lot of Copilot CLI magic ✨**
+- Live: [echoflow-app.com](https://echoflow-app.com)
