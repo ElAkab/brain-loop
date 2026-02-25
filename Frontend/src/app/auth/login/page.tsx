@@ -56,8 +56,8 @@ export default function LoginPage() {
 		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 p-4">
 			<div className="w-full max-w-md p-8 rounded-2xl shadow-xl">
 				<div className="text-center mb-8">
-					<h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
-					<p className="text-gray-600">Sign in to continue learning</p>
+					<h1 className="text-3xl font-bold mb-2">Welcome</h1>
+					<p className="text-gray-500">Sign in or login in the same page</p>
 				</div>
 
 				<div className="mb-6 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 dark:bg-primary/10 dark:border-primary/30 text-sm text-primary/80 dark:text-primary/70">
@@ -143,13 +143,10 @@ export default function LoginPage() {
 						</button>
 					</form>
 
+					<hr />
+
 					{/* Demo Account */}
 					<form onSubmit={handleDemoSignIn} className="space-y-3">
-						<div className="relative flex justify-center text-xs">
-							<span className="px-4 dark:bg-[#172130] text-gray-400">
-								For testers only
-							</span>
-						</div>
 						<input
 							type="password"
 							name="demoPassword"
@@ -157,6 +154,11 @@ export default function LoginPage() {
 							placeholder="Demo access code"
 							className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 outline-none transition"
 						/>
+						<div className="relative flex justify-center text-xs">
+							<span className="px-4 dark:bg-[#172130] text-gray-400">
+								For testers only
+							</span>
+						</div>
 						<button
 							type="submit"
 							disabled={loading}

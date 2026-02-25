@@ -10,6 +10,22 @@
 
 import { Resend } from "resend";
 
+// ── Startup guards ────────────────────────────────────────────────────────────
+// Log clearly at module init so missing config is visible in deployment logs,
+// not buried in individual send() failures.
+if (!process.env.RESEND_API_KEY) {
+	console.error(
+		"[Email] RESEND_API_KEY is not set — all emails will be skipped. " +
+		"Add this variable to your environment (Vercel → Settings → Environment Variables).",
+	);
+}
+if (!process.env.RESEND_FROM_EMAIL) {
+	console.warn(
+		"[Email] RESEND_FROM_EMAIL is not set — falling back to noreply@echoflow-app.com. " +
+		"Ensure this domain is verified in your Resend dashboard, otherwise all sends will fail.",
+	);
+}
+
 const resend = process.env.RESEND_API_KEY
 	? new Resend(process.env.RESEND_API_KEY)
 	: null;
@@ -33,7 +49,7 @@ async function send(
 		return false;
 	}
 	try {
-		const { error } = await resend.emails.send({
+		const { data, error } = await resend.emails.send({
 			from: FROM,
 			to,
 			subject,
@@ -41,13 +57,19 @@ async function send(
 			...(options?.replyTo ? { replyTo: options.replyTo } : {}),
 		});
 		if (error) {
-			console.error(`[Email] Resend error for "${subject}" to ${to}:`, error);
+			// Common causes: unverified sender domain, invalid API key, Resend free
+			// plan restriction (free tier can only send to the account owner's email).
+			console.error(
+				`[Email] Resend rejected "${subject}" to ${to}:`,
+				JSON.stringify(error),
+			);
 			if (options?.throwOnError) throw new Error(error.message);
 			return false;
 		}
+		console.log(`[Email] Sent "${subject}" to ${to} — id: ${data?.id}`);
 		return true;
 	} catch (err) {
-		console.error(`[Email] Failed to send "${subject}" to ${to}:`, err);
+		console.error(`[Email] Unexpected error sending "${subject}" to ${to}:`, err);
 		if (options?.throwOnError) throw err;
 		return false;
 	}

@@ -15,7 +15,7 @@ export default function CategoriesPage() {
 		<div className="space-y-8">
 			<div>
 				<h1 className="text-3xl font-bold mb-2">Categories</h1>
-				<p className="text-gray-600">
+				<p className="text-gray-500">
 					Organize your notes and customize AI behavior for each category.
 				</p>
 			</div>
